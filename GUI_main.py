@@ -22,8 +22,9 @@ class Application(tk.Frame):
         self.parent = parent
         #set path for SQLite db:
         dir = "{0}\jzz_pWesp".format(os.environ["LOCALAPPDATA"])
-        if not os.path.exists(dir):
-            os.makedirs(dir)
+        self.git_repo_path = dir + "\tidal_data_repo"
+        if not os.path.exists(self.git_repo_path):
+            os.makedirs(self.git_repo_path)
         self.SQLiteDBPath= dir + '\Jzz_Tijpoorten_python.db3'
 
         #TODO: catch the 'False' return of the __initDB
