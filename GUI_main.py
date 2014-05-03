@@ -22,7 +22,7 @@ class Application(tk.Frame):
         self.parent = parent
         #set path for SQLite db:
         dir = "{0}\jzz_pWesp".format(os.environ["LOCALAPPDATA"])
-        self.csv_repo_path = dir + "\tidal_data_repo"
+        self.csv_repo_path = dir + r"\tidal_data_repo"
         if not os.path.exists(self.csv_repo_path):
             os.makedirs(self.csv_repo_path)
         self.SQLiteDBPath= dir + '\Jzz_Tijpoorten_python.db3'
