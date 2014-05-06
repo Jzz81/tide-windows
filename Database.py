@@ -213,6 +213,8 @@ class Database():
         if self.connected_to_gna_network:
             print "getting latest network database file...",
             self.network_program_database_path = self.__get_network_db_path(which_database="program")
+        else:
+            self.network_program_database_path = None
 
         if self.network_program_database_path != None:
             print "got it!"
