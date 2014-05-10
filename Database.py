@@ -16,6 +16,9 @@ try:
     import pyodbc
 except ImportError:
     raise ImportError("The module 'pyodbc' is not installed on your system")
+import numpy as np
+import pandas
+import pandas.io.sql as panda_sql
 
 class DatabaseError(Exception):
     pass
@@ -27,10 +30,46 @@ class Database():
         self.network_database_dir = self.__add_slash_to_dir(network_database_directory)
         self.local_database_dir = self.__add_slash_to_dir(local_database_directory)
 
+        print self.network_database_dir
+        print self.local_database_dir
+
         self.cross_check_program_databases()
 
 ##        self.tidal_points = self.__get_tidal_points()
 ##        print self.tidal_points
+
+    def get_numpy_arrays(self):
+        '''gets all the tables into numpy arrays and store them in a dict'''
+        self.tidal_data_arrays = {}
+        #get all tables:
+        db_rise_dir = self.__make_correct_path("tidal_rise",self.local_database_dir)
+        #DEBUG!
+        #decision: what data to load. All? months? something around current date?
+        #perhaps data cleanup, to prevent several years of data to load?
+        #limit time to go back in time (1 month)?
+        db_rise_path = db_rise_dir + "2014.db3"
+        self.__open_db_connection(db_rise_path)
+        sql = "SELECT name FROM sqlite_master WHERE type='table'";
+        c = self.__execute_sql(sql, return_cursor=True)
+        for r in c:
+            self.tidal_data_arrays[r[0]] = self.__get_numpy_array(r[0])
+        print self.tidal_data_arrays
+
+    def __get_numpy_array(self, table):
+        '''gets the table into a numpy array'''
+        sql = "SELECT * FROM {table};".format(table=table)
+        self.__execute_sql(sql)
+        data = list(self.__cur)
+        n = np.array(data)
+        d1 = datetime.datetime.now()
+        d2 = d1 + datetime.timedelta(hours=1)
+        return self.__get_numpy_slice_between_dates(n,d1,d2)
+
+    def __get_numpy_slice_between_dates(self, numpy_array, date1, date2):
+        '''slices the numpy array between 2 dates'''
+        d1 = self.__since_epoch(date1)
+        d2 = self.__since_epoch(date2)
+        return numpy_array[(numpy_array[:,0] >= d1) & (numpy_array[:,0] <= d2)]
 
     def __add_slash_to_dir(self, dir):
         '''makes sure there is a slash at the end of dir'''
@@ -46,8 +85,8 @@ class Database():
         connects to a given access database and imports the data in that
         database. The database must contain a table for every tidal point with
         the name of that tidal point as table name and have 2 columns:
-            DateTime (must contain datetime values)
-            Rise (must contain rise values)
+            datetime (must contain datetime values)
+            rise (must contain rise values)
         The database will be converted to a new sqlite database with the same
         columns.
         Datatime values will be converted into seconds since epoch (1-1-1970)
@@ -110,13 +149,14 @@ class Database():
         for i in range(0, len(data)):
             data[i][0] = self.__since_epoch(data[i][0])
             data[i][1] = round(data[i][1],1)
-            if time.strftime("%Y", time.localtime(data[i][0])) != year_of_data:
+            if time.strftime("%Y", time.gmtime(data[i][0])) != year_of_data:
                 if year_of_data != None:
                     #a year has been added, commit changes and close connection
                     self.__conn.commit()
                     self.__conn.close()
                 #get year of data point
                 year_of_data = time.strftime("%Y", time.gmtime(data[i][0]))
+                print "found data for", year_of_data
                 #find tidal database of this year (create if does not exists)
                 dir = self.__make_correct_path("tidal_rise", self.local_database_dir)
                 path = "{dir}{year}.db3".format(dir=dir, year=year_of_data)
@@ -141,7 +181,7 @@ class Database():
                     listindex = None
                 #datetime to insert is in the range currently in the database
                 if listindex == None:
-    ##                print "datetime not found"
+                    print "datetime not found"
                     sql = "INSERT INTO {table} (datetime, rise) VALUES ('{dt}', '{rise}');".format(table=table_name, dt=data[i][0], rise=data[i][1])
                     self.__execute_sql(sql, commit=False)
                 elif data[i][1] != current_table_data[listindex][1]:
@@ -156,17 +196,7 @@ class Database():
 ##                self.__conn.commit()
 ##                self.__conn.close()
 ##                break
-        #for each datetime/rise value pair; insert (overwrite if it exists)
-        #if year of current datapoint is bigger then the stored year, switch to new database
-
-        return
-
-        self.__open_db_connection()
-        #tidal data table names are formatted like: TDP_xxx_Tidal_Data
-        self.__execute_sql("CREATE TABLE TDP_{id}_Tidal_Data (datetime datetime, rise real);".format(id=id))
-        c = self.__conn.cursor()
-        sql = "INSERT INTO TDP_{id}_Tidal_Data VALUES (?,?);".format(id=id)
-        c.executemany(sql, data)
+        #don't forget to commit the last entries:
         self.__conn.commit()
         self.__conn.close()
 
@@ -208,11 +238,10 @@ class Database():
         self.connected_to_gna_network = self.__gna_network_connection_check()
         if self.connected_to_gna_network:
             print "GNA network connection present"
-        else:
-            print "no GNA network connection present"
-        if self.connected_to_gna_network:
             print "getting latest network database file...",
             self.network_program_database_path = self.__get_network_db_path(which_database="program")
+        else:
+            print "no GNA network connection present"
 
         if self.network_program_database_path != None:
             print "got it!"
@@ -368,25 +397,29 @@ class Database():
 
     def __make_correct_path(self, which_database, dir):
         if which_database == "program":
-            return dir + "program_data\\"
+            db_dir = dir + "program_data\\"
         elif which_database == "tidal_rise":
-            return dir + r"tidal_data\rise_values\\"
+            db_dir = dir + r"tidal_data\rise_values\\"
         elif which_database == "tidal_hw_lw":
-            return dir + r"tidal_data\hw_lw\\"
+            db_dir = dir + r"tidal_data\hw_lw\\"
+        self.__make_dir_if_not_exists(db_dir)
+        return db_dir
 
     def __get_network_db_path(self, which_database):
         '''will return the network db full path.
 
-        which_database should be "program" or "tidal" to return the program data
-        database or the tidal data database'''
-        return self.__get_db_path(self.__make_correct_path(which_database, self.network_database_dir))
+        which_database should be "program", "tidal_rise" or "tidal_hw_lw"
+        '''
+        path = self.__make_correct_path(which_database, self.network_database_dir)
+        return self.__get_db_path(path)
 
     def __get_local_db_path(self, which_database):
         '''will return the local db full path.
 
-        which_database should be "program" or "tidal" to return the program data
-        database or the tidal data database'''
-        return self.__get_db_path(self.__make_correct_path(which_database, self.local_database_dir))
+        which_database should be "program", "tidal_rise" or "tidal_hw_lw"
+        '''
+        path = self.__make_correct_path(which_database, self.local_database_dir)
+        return self.__get_db_path(path)
 
     def __get_db_path(self, dir):
         '''gets the newest db3 file from dir'''
@@ -396,6 +429,11 @@ class Database():
         except:
             return None
         return f
+
+    def __make_dir_if_not_exists(self, dir):
+        '''creates the dir (including subdirs) if it does not exists'''
+        if not os.path.exists(dir):
+            os.makedirs(dir)
 
     def __gna_network_connection_check(self):
         '''checks if the gna network is connected'''
@@ -415,7 +453,8 @@ def main():
     s = object
 
     db = Database(s, nw_db_path, local_db_path, db_name)
-    db.import_access_database(r"Z:\Joos\programma Patrick\python\Jaartij-2014 - testversie.accdb")
+##    db.import_access_database(r"Z:\Joos\programma Patrick\python\Jaartij-2014 - testversie.accdb")
+    db.get_numpy_arrays()
 
 if __name__ == '__main__':
     main()
