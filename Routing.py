@@ -99,8 +99,8 @@ class StoredRoutepoints():
         self.__open_db_connection()
         for wp in self.route_points.values():
             tp_id = wp.tidal_point_id
-            table_name = "TDP_{id}_Tidal_Data".format(id=tp_id)
-            if self.__table_does_not_exists(table_name):
+            self.__execute_sql("SELECT * FROM TDP_Names WHERE id='{id}' AND data_exists='1';".format(id=tp_id))
+            if self.__cur.fetchone() == None:
                 print "tidal data table with id '{id}' does not exist".format(id=tp_id)
                 wp.tidal_point_id = "0"
         self.__conn.close()

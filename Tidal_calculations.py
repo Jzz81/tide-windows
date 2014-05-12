@@ -11,6 +11,7 @@
 
 import sqlite3
 import datetime
+import time
 import pandas
 import numpy
 
@@ -32,7 +33,7 @@ class Tidal_calc():
                 ETA,
                 min_tidal_window_before_ETA,
                 min_tidal_window_after_ETA,
-                panda_timeframes):
+                numpy_dict):
         self.parent = parent
         self.route = route
         self.waypoints = waypoints
@@ -45,7 +46,7 @@ class Tidal_calc():
         self.ETA = ETA
         self.min_tidal_window_before_ETA = min_tidal_window_before_ETA
         self.min_tidal_window_after_ETA = min_tidal_window_after_ETA
-        self.panda_dict = panda_timeframes
+        self.numpy_dict = numpy_dict
 
         self.waypoint_names_by_id = {}
         for wp in self.waypoints.values():
@@ -94,6 +95,8 @@ class Tidal_calc():
             deviation = self.deviations[treshold.deviation_id]
             last_routepoint_speed = rp_speed
             last_routepoint_id = rp_id
+
+            numpy_timeframe = self.numpy_dict["TDP_{id}_Tidal_Data".format(id=tidal_point_id)]
             self.route_windows[i] = route_point_tidal_data(parent=self,
                                                             treshold_name=rp_name,
                                                             treshold_depth=depth,
@@ -106,7 +109,15 @@ class Tidal_calc():
                                                             min_tidal_window_after_ETA=self.min_tidal_window_after_ETA,
                                                             distance_to_here=distance_total,
                                                             time_to_here=time_elapsed,
-                                                            panda_timeframes=self.panda_dict)
+                                                            numpy_timeframe=numpy_timeframe)
+
+    def __since_epoch(self, dt):
+        '''returns the seconds since epoch of a given datetime'''
+        return (dt - datetime.datetime(1970, 1,1)).total_seconds()
+
+    def __epoch_to_date(self, epoch):
+        '''returns a datatime, constructed from a given epoch'''
+        pass
 
     def get_global_window(self):
         '''finds the global tidal window. self.global_eta must be set'''
@@ -178,7 +189,7 @@ class route_point_tidal_data():
                  min_tidal_window_after_ETA,
                  distance_to_here,
                  time_to_here,
-                 panda_timeframes
+                 numpy_timeframe
                  ):
         self.parent = parent
         self.treshold_name = treshold_name
@@ -193,7 +204,7 @@ class route_point_tidal_data():
         self.distance_to_here = distance_to_here
         self.time_to_here = time_to_here
         self.local_ETA = self.ETA + self.time_to_here
-        self.panda_dict = panda_timeframes
+        self.numpy_timeframe = numpy_timeframe
         #variable that indicates all of the tidal curve is below the needed rise:
         self.no_tidal_window_possible = False
         #variable that indicates all of the tidal curve is above the needed rise:
@@ -205,48 +216,53 @@ class route_point_tidal_data():
         self.needed_rise = self.draught + self.UKC - (self.treshold_depth + self.treshold_deviation)
         self.__get_tidal_windows()
 
+    def __since_epoch(self, dt):
+        '''returns the seconds since epoch of a given datetime'''
+        return (dt - datetime.datetime(1970, 1,1)).total_seconds()
+
+    def __get_numpy_slice_between_dates(self, date1, date2):
+        '''slices the numpy array between 2 dates (in epoch)'''
+        return self.numpy_timeframe[(self.numpy_timeframe[:,0] >= date1) & (self.numpy_timeframe[:,0] <= date2)]
+
     def __get_tidal_windows(self):
         '''will retreive all tidal windows for the given ETA and one week ahead (2 days before)'''
         startdate = self.ETA
 
-        #GET PANDAS TIMEFRAME OF CURRENT TIDAL POINT:
-        table_name = "TDP_{id}_Tidal_Data".format(id=self.tidal_point)
-        tf = self.panda_dict[table_name]
-
         #CREATE TESTING TIMEFRAME OF 2 DAYS BEFORE AND 7 DAYS FROM ETA:
         self.eval_startdate = startdate - datetime.timedelta(days=2)
-        d1 = unicode(self.eval_startdate)
+        epoch_start_date = self.__since_epoch(self.eval_startdate)
         self.eval_enddate = startdate + datetime.timedelta(days=7)
-        d2 = unicode(self.eval_enddate)
-        test_tf = tf[(tf.datetime > d1) & (tf.datetime < d2)]
+        epoch_end_date = self.__since_epoch(self.eval_enddate)
+        test_tf = self.__get_numpy_slice_between_dates(epoch_start_date, epoch_end_date)
 
         #TEST IF ALL OF THE TEST TIMEFRAME IS ABOVE THE NEEDED RISE:
-        if test_tf[test_tf.rise < self.needed_rise].empty:
+        above = test_tf[:,1] >= self.needed_rise
+        if not False in above:
             self.tidal_windows.append([self.eval_startdate, self.eval_enddate])
             return
 
         #TEST IF ALL OF THE TEST TIMEFRAME IS BELOW THE NEEDED RISE:
-        if test_tf[test_tf.rise > self.needed_rise].empty:
+        if not True in above:
             self.tidal_windows = None
             return
 
         #GET TIME VALUES OF CROSSING POINTS (WITH UP/DOWN INDICATOR)
-        crossings =  self.cross(test_tf,self.needed_rise)
+        crossings =  self.cross(test_tf)
 
-        #IF FIRST CROSSING IS DOWN, EVAL_STARTDATE IS BEGINNING OF TIDALFRAME.
-        if crossings[0][0] == 'DOWN':
-            self.tidal_windows.append([self.eval_startdate, crossings[0][1]])
+        #IF FIRST DATA POINT IS EQUAL OR ABOVE NEEDED RISE, FIRST PART IS A TIDAL WINDOW.
+        if test_tf[0][1] >= self.needed_rise:
+            self.tidal_windows.append([self.eval_startdate, self.__epoch_to_date(crossings[0])])
             start_i = 1
         else:
             start_i = 0
 
         for i in range(start_i, len(crossings), 2):
-            d0 = crossings[i][1]
+            d0 = crossings[i]
             if i == len(crossings) -1:
-                d1 = self.eval_enddate
+                d1 = epoch_end_date
             else:
-                d1 = crossings[i+1][1]
-            self.tidal_windows.append([d0,d1])
+                d1 = crossings[i+1]
+            self.tidal_windows.append([self.__epoch_to_date(d0),self.__epoch_to_date(d1)])
 
     def __interpolate_rise_value(self, d0, d1, r0, r1, dx):
         '''function to interpolate a rise from a given datetime value (dx)'''
@@ -267,46 +283,33 @@ class route_point_tidal_data():
         '''returns a datetime value'''
         return datetime.datetime.strptime(time, "%Y-%m-%d %H:%M:%S")
 
-    def cross(self, series, cross=0, direction='cross'):
+    def cross(self, array):
         """
-        Given a Series returns all the index values where the data values equal
+        Given an array returns all the index values where the data values equal
         the 'cross' value.
 
         Direction can be 'rising' (for rising edge), 'falling' (for only falling
         edge), or 'cross' for both edges
         """
         # Find if values are above or bellow yvalue crossing:
-        above=series.values > cross
+        above= array[:,1] >= self.needed_rise
         below= numpy.logical_not(above)
         left_shifted_above = above[1:]
         left_shifted_below = below[1:]
         x_crossings = []
         # Find indexes on left side of crossing point
-        if direction == 'rising':
-            idxs = (left_shifted_above & below[0:-1]).nonzero()[0]
-        elif direction == 'falling':
-            idxs = (left_shifted_below & above[0:-1]).nonzero()[0]
-        else:
-            rising = left_shifted_above & below[0:-1]
-            falling = left_shifted_below & above[0:-1]
-            idxs = (rising | falling).nonzero()[0]
+        rising = left_shifted_above & below[0:-1]
+        falling = left_shifted_below & above[0:-1]
+        idxs = (rising | falling).nonzero()[0]
 
         # Calculate x crossings with interpolation using formula for a line:
-        x1 = series.index.values[idxs]
-        x2 = series.index.values[idxs+1]
-        y1 = series.values[idxs]
-        y2 = series.values[idxs+1]
-        result = []
-        for i in range(0,len(x1)):
-            d0 = self.__make_datetime_from_db_val(y1[i][0])
-            d1 = self.__make_datetime_from_db_val(y2[i][0])
-            d = self.__interpolate_datetime_value(d0,d1,y1[i][1],y2[i][1],cross)
-            if y1[i][1] < y2[i][1]:
-                result.append(['UP', d])
-            else:
-                result.append(['DOWN', d])
-        return result
+        dates1 = array[:,0][idxs]
+        dates2 = array[:,0][idxs+1]
+        rises1 = array[:,1][idxs]
+        rises2 = array[:,1][idxs+1]
 
+        x_crossings = (self.needed_rise-rises1)*(dates2-dates1)/(rises2-rises1) + dates1
+        return x_crossings
 
     def first_tidal_window_available_after_time(self, time):
         '''returns the first tidal window available (returns the eta starting point)'''
@@ -334,95 +337,16 @@ class route_point_tidal_data():
                     self.local_tidal_window = w
                     return w[0] + self.min_window_before_ETA - self.time_to_here
 
+    def __epoch_to_date(self, epoch):
+        '''returns a datatime, constructed from a given epoch'''
+        timestruct = time.gmtime(epoch)
+        return datetime.datetime(year=timestruct.tm_year,
+                                month=timestruct.tm_mon,
+                                day=timestruct.tm_mday,
+                                hour=timestruct.tm_hour,
+                                minute=timestruct.tm_min,
+                                second=timestruct.tm_sec)
 
-##    def has_tidal_window_around_local_ETA(self):
-##        '''returns true if the ETA fits in a valid tidal window'''
-##        c = self.memory_database.cursor()
-##        table_name = "TDP_{id}_Tidal_Data".format(id=self.tidal_point)
-##        startdate = self.local_ETA - self.min_window_before_ETA
-##        enddate = self.local_ETA + self.min_window_after_ETA
-##        sql = "SELECT * FROM {table} WHERE datetime BETWEEN '{start}' AND '{end}';".format(table=table_name, start=startdate, end=enddate)
-##        c.execute(sql)
-##        print "needed rise: ", self.needed_rise
-##        for r in c:
-##            if r[1] < self.needed_rise:
-##                print "on: ",
-##                print r[0],
-##                print " insufficient rise of: ",
-##                print r[1]
-
-##    def __has_tidal_window_on_time(self, time):
-##        '''test of panda series as data structure'''
-##        table_name = "TDP_{id}_Tidal_Data".format(id=self.tidal_point)
-##        enddate = time + self.min_window_after_ETA
-##        startdate = time - self.min_window_before_ETA
-##        d1 = unicode(startdate)
-##        d2 = unicode(enddate)
-##        tf = self.panda_dict[table_name]
-####        new_index = tf.index + pandas.Index([d1, d2])
-####        try:
-####            tf = tf.reindex(new_index).interpolate(method="linear")
-####        except:
-####            print table_name
-####            print d1
-####            print d2
-####            print tf[tf.groupby(level=0).transform(len)['rise'] > 1]
-##
-##        #get indexes of the slice of data from start to end
-##        index_list =  tf[(tf.datetime >= d1) & (tf.datetime <= d2)].index.tolist()
-##
-##
-##        #check if extended slice is all above needed rise:
-##        if tf[(tf.index >= min(index_list) -1) & (tf.index <= max(index_list) + 1) & (tf.rise < self.needed_rise)].empty:
-##            return True
-##        #check if non-extended slice is anywhere below needed rise:
-##        if not tf[(tf.index >= min(index_list)) & (tf.index <= max(index_list)) & (tf.rise < self.needed_rise)].empty:
-##            return False
-##        #interpolate:
-##        window_slice = tf[(tf.index >= min(index_list) -1) & (tf.index <= max(index_list) + 1)]
-##        dt_list = window_slice.datetime.tolist()
-##        r_list = window_slice.rise.tolist()
-##        dt0 = self.__make_datetime_from_db_val(dt_list[0])
-##        dt1 = self.__make_datetime_from_db_val(dt_list[1])
-##        r0 = r_list[0]
-##        r1 = r_list[1]
-##        if self.__interpolate_rise_value(dt0, dt1, r0, r1, startdate) < self.needed_rise:
-##            return False
-##        dt0 = self.__make_datetime_from_db_val(dt_list[-2])
-##        dt1 = self.__make_datetime_from_db_val(dt_list[-1])
-##        r0 = r_list[-2]
-##        r1 = r_list[-1]
-##        if self.__interpolate_rise_value(dt0, dt1, r0, r1, enddate) < self.needed_rise:
-##            return False
-##        else:
-##            return True
-
-
-##    def __construct_datetime_string(self, datetime):
-##        s = "{y}-{m}-{d} {H}:{M}:{S}".format(y=datetime.datetime.year(datetime),
-##                                                 m=datetime.datetime.month(datetime),
-##                                                 d=datetime.datetime.day(datetime),
-##                                                 )
-
-##    def __has_tidal_window_on_time1(self, time):
-##        '''tests if there is a tidal window on this given time'''
-##        c = self.memory_database.cursor()
-##        table_name = "TDP_{id}_Tidal_Data".format(id=self.tidal_point)
-##        enddate = time + self.min_window_after_ETA
-##        startdate = time - self.min_window_before_ETA
-##        sql = "SELECT * FROM {table} WHERE datetime BETWEEN '{start}' AND '{end}';".format(table=table_name, start=startdate, end=enddate)
-##        c.execute(sql)
-##        for r in c:
-##            if r[1] < self.needed_rise:
-##                return False
-##        return True
-
-
-##    def first_tidal_window_available_after_time2(self, time):
-##        '''tryout of dict as data structure'''
-##        startdate = time + self.time_to_here
-##        if self.__has_tidal_window_on_time(startdate):
-##            return startdate - self.time_to_here
 
 def main():
     d1 = datetime.datetime.today()

@@ -17,59 +17,90 @@ try:
 except ImportError:
     raise ImportError("The module 'pyodbc' is not installed on your system")
 import numpy as np
-import pandas
-import pandas.io.sql as panda_sql
 
 class DatabaseError(Exception):
     pass
 
 class Database():
-    def __init__(self, parent, network_database_directory, local_database_directory, database_name):
+    def __init__(self, parent, network_database_directory, local_database_directory):
         self.parent  = parent
 
         self.network_database_dir = self.__add_slash_to_dir(network_database_directory)
         self.local_database_dir = self.__add_slash_to_dir(local_database_directory)
 
-        print self.network_database_dir
-        print self.local_database_dir
-
         self.cross_check_program_databases()
+        self.get_numpy_arrays()
+        self.tidal_points = self.__get_tidal_points()
 
-##        self.tidal_points = self.__get_tidal_points()
-##        print self.tidal_points
+    def __get_tidal_points(self):
+        '''get all tidal points from the database'''
+        self.__open_db_connection()
+        table_name = "TDP_Names"
+        sql = "SELECT * FROM {table};".format(table=table_name)
+        self.__execute_sql(sql)
+        result = {}
+        for r in self.__cur:
+            result[r[1]] = r[0]
+        self.__conn.close()
+        return result
+
+    def __monthdelta(self, date, delta):
+        '''returns the date with an offset of delta months (1st day of month)'''
+        m = (date.month+delta) % 12
+        y = date.year + ((date.month)+delta) // 12
+        if m == 0:
+            m = 12
+        d = 1
+        return datetime.datetime(day=d, month=m, year=y)
+        return date.replace(day=d,month=m, year=y)
 
     def get_numpy_arrays(self):
         '''gets all the tables into numpy arrays and store them in a dict'''
         self.tidal_data_arrays = {}
-        #get all tables:
         db_rise_dir = self.__make_correct_path("tidal_rise",self.local_database_dir)
-        #DEBUG!
-        #decision: what data to load. All? months? something around current date?
-        #perhaps data cleanup, to prevent several years of data to load?
-        #limit time to go back in time (1 month)?
-        db_rise_path = db_rise_dir + "2014.db3"
-        self.__open_db_connection(db_rise_path)
-        sql = "SELECT name FROM sqlite_master WHERE type='table'";
-        c = self.__execute_sql(sql, return_cursor=True)
-        for r in c:
-            self.tidal_data_arrays[r[0]] = self.__get_numpy_array(r[0])
-        print self.tidal_data_arrays
+        #determine which year of data we need first. Data is taken from 1 month before
+        #to 1 year after the current date
+        first_date = self.__monthdelta(datetime.datetime.now(), -1)
+        last_date = self.__monthdelta(datetime.datetime.now(), 12)
+        #get paths of appropriate databases:
+        db_rise_path = []
+        for i in range(first_date.year, last_date.year + 1):
+            db_rise_path.append("{dir}{y}.db3".format(dir=db_rise_dir, y=i))
 
-    def __get_numpy_array(self, table):
-        '''gets the table into a numpy array'''
-        sql = "SELECT * FROM {table};".format(table=table)
-        self.__execute_sql(sql)
-        data = list(self.__cur)
-        n = np.array(data)
-        d1 = datetime.datetime.now()
-        d2 = d1 + datetime.timedelta(hours=1)
-        return self.__get_numpy_slice_between_dates(n,d1,d2)
+        for path in db_rise_path:
+            if not os.path.isfile(path):
+                continue
+            self.__open_db_connection(path)
+            #get all tables:
+            sql = "SELECT name FROM sqlite_master WHERE type='table'";
+            cursor = self.__execute_sql(sql, return_cursor=True)
+            for table in cursor:
+                sql = "SELECT * FROM {table} WHERE datetime >= {first} AND datetime <= {last};"
+                sql = sql.format(table=table[0],
+                                 first=self.__since_epoch(first_date),
+                                 last=self.__since_epoch(last_date))
+                self.__execute_sql(sql)
+                data = list(self.__cur)
+                n = np.array(data)
 
-    def __get_numpy_slice_between_dates(self, numpy_array, date1, date2):
-        '''slices the numpy array between 2 dates'''
-        d1 = self.__since_epoch(date1)
-        d2 = self.__since_epoch(date2)
-        return numpy_array[(numpy_array[:,0] >= d1) & (numpy_array[:,0] <= d2)]
+                if table[0] in self.tidal_data_arrays.keys():
+                    #vstack numpy array to last
+                    self.tidal_data_arrays[table[0]] = np.vstack((self.tidal_data_arrays[table[0]],n))
+                else:
+                    self.tidal_data_arrays[table[0]] = n
+        self.__check_existence_of_tidal_data()
+
+    def __check_existence_of_tidal_data(self):
+        '''checks the existence of a tidal data point'''
+        self.__open_db_connection()
+        table_name = "TDP_Names"
+        #set all data_exists fields to 0:
+        self.__execute_sql("UPDATE {table} SET data_exists='0';".format(table=table_name))
+        cursor = self.__execute_sql("SELECT id FROM {table};".format(table=table_name), return_cursor=True)
+        for r in cursor:
+            TDP_table_name = "TDP_{id}_Tidal_Data".format(id=r[0])
+            if TDP_table_name in self.tidal_data_arrays.keys():
+                self.__execute_sql("UPDATE {table} SET data_exists='1' WHERE id={id};".format(table=table_name, id=r[0]))
 
     def __add_slash_to_dir(self, dir):
         '''makes sure there is a slash at the end of dir'''
@@ -242,6 +273,7 @@ class Database():
             self.network_program_database_path = self.__get_network_db_path(which_database="program")
         else:
             print "no GNA network connection present"
+            self.network_program_database_path = None
 
         if self.network_program_database_path != None:
             print "got it!"
@@ -303,18 +335,6 @@ class Database():
         '''
         TODO: CLEAN DB FILES BOTH LOCAL AND NETWORK IF MORE THEN 5 EXISTS
         '''
-
-    def __get_tidal_points(self):
-        '''get all tidal points from the database'''
-        self.__open_db_connection()
-        table_name = "TDP_Names"
-        sql = "SELECT * FROM {table} WHERE table_exists='1';".format(table=table_name)
-        self.__execute_sql(sql)
-        result = {}
-        for r in self.__cur:
-            result[r[0]] = r[1]
-        self.__conn.close()
-        return result
 
     def __execute_sql(self, sql, return_cursor=False, commit=True):
         '''executes a sql string and commits. If cursor is set, it returns a cursor'''
@@ -399,9 +419,9 @@ class Database():
         if which_database == "program":
             db_dir = dir + "program_data\\"
         elif which_database == "tidal_rise":
-            db_dir = dir + r"tidal_data\rise_values\\"
+            db_dir = dir + "tidal_data\\rise_values\\"
         elif which_database == "tidal_hw_lw":
-            db_dir = dir + r"tidal_data\hw_lw\\"
+            db_dir = dir + "tidal_data\\hw_lw\\"
         self.__make_dir_if_not_exists(db_dir)
         return db_dir
 
@@ -452,9 +472,9 @@ def main():
 
     s = object
 
-    db = Database(s, nw_db_path, local_db_path, db_name)
-##    db.import_access_database(r"Z:\Joos\programma Patrick\python\Jaartij-2014 - testversie.accdb")
-    db.get_numpy_arrays()
+    db = Database(s, nw_db_path, local_db_path)
+##    db.import_access_database(r"Z:\Joos\programma Patrick\python\Jaartij-2014.accdb")
+##    db.get_numpy_arrays()
 
 if __name__ == '__main__':
     main()

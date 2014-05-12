@@ -8,7 +8,7 @@ import Routing
 import tkFileDialog
 import tkMessageBox
 import os
-import Access2SQLite
+import Database
 import GUI_helper
 import Tkinter as tk
 import Misc_classes
@@ -21,17 +21,16 @@ class Application(tk.Frame):
 
         self.parent = parent
         #set path for SQLite db:
-        dir = "{0}\jzz_pWesp".format(os.environ["LOCALAPPDATA"])
-        self.csv_repo_path = dir + r"\tidal_data_repo"
-        if not os.path.exists(self.csv_repo_path):
-            os.makedirs(self.csv_repo_path)
-        self.SQLiteDBPath= dir + '\Jzz_Tijpoorten_python.db3'
+        dir = "{0}\Wespy".format(os.environ["LOCALAPPDATA"])
+        self.local_db_directory = dir
+        if not os.path.exists(self.local_db_directory):
+            os.makedirs(self.local_db_directory)
+        self.nw_db_directory = r"\\srkgna\personal\GNA\databaseHVL\Wespy"
 
-        #TODO: catch the 'False' return of the __initDB
-        self.Status = self.__initDB()
+        self.__initDB()
 
-        self.misc_data = Misc_classes.misc_data(self.SQLiteDBPath)
-        self.routing_data = Routing.StoredRoutepoints(self.SQLiteDBPath)
+        self.misc_data = Misc_classes.misc_data(self.database.local_program_database_path)
+        self.routing_data = Routing.StoredRoutepoints(self.database.local_program_database_path)
 
         self.__initUI()
 ##        self.make_tidal_calculations()
@@ -52,20 +51,7 @@ class Application(tk.Frame):
 
     def __initDB(self):
         '''initializes the database and, if nessesary, converts the Access DB to import data'''
-        self.database = Access2SQLite.AccessSQLiteConvert(self.SQLiteDBPath)
-##        try:
-##            self.database = Access2SQLite.AccessSQLiteConvert(self.SQLiteDBPath)
-##        except:
-##            print "Something went wrong initializing the AccessSQLiteConvert class"
-##            return False
-
-        #check if the Access Database was found. If not, ask for it:
-        if self.database.AccDBPath == "":
-            self.database.AccDBPath = tkFileDialog.askopenfilename(parent=self)
-
-        if not self.database.convert_accessDB_to_SQLite():
-            print "Could not get Tidal data"
-            return False
+        self.database = Database.Database(self, self.nw_db_directory, self.local_db_directory)
         print "Tidal data available"
 
     def calculate_first_possible_window(self,
@@ -89,7 +75,7 @@ class Application(tk.Frame):
                                                 ETA=eta,
                                                 min_tidal_window_before_ETA=time_window_before_eta,
                                                 min_tidal_window_after_ETA=time_window_after_eta,
-                                                panda_timeframes=self.database.memory_tidal_dict)
+                                                numpy_dict=self.database.tidal_data_arrays)
         td_calc.calculate_first_possible_ETA()
         td_calc.get_global_window()
         self.tidal_grapth_frame.fill_tidal_graph(td_calc)
