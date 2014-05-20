@@ -2,6 +2,11 @@ The tide-window program is a program to calculate tide windows. It uses imported
 
 Changelog:
 *****
+20-05-2014
+ - Added configuration screen with a ttk notebook (tabbed view) to modify tresholds, waypoints, connections, ship types and speed definitions.
+ - Added login screen to determine normal user and admin user.
+
+*****
 version 0.1
 -basic functionality in place. Program can now:
   -Import tidal data from an access database to an sqlite database

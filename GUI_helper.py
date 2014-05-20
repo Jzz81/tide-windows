@@ -8,6 +8,7 @@
 #-------------------------------------------------------------------------------
 
 import Tkinter as tk
+import ttk
 import datetime
 import calendar
 import pytz
@@ -21,6 +22,91 @@ def convert_local_time_to_UTC(localtime):
     '''converts the local time to utc'''
     localized_time = pytz.timezone("Europe/Amsterdam").localize(localtime)
     return localized_time.astimezone(pytz.utc).replace(tzinfo=None)
+
+class config_screen_frame(tk.Frame):
+    def __init__(self, parent, user):
+        tk.Frame.__init__(self,parent)
+        self.parent = parent
+
+        tabs = ttk.Notebook(self)
+        #tresholds tab:
+        self.treshold_tab = ttk.Frame(tabs)
+        self.tresholds_listbox = MultiListbox(self.treshold_tab, (('Naam', 20), \
+                                     ('snelheid', 12), \
+                                     ('waterdiepte Afvaart', 10), \
+                                     ('waterdiepte Opvaart', 10), \
+                                     ('afwijking waterstand', 7), \
+                                     ('UKC', 10), \
+                                     ('getijdetabel', 12)))
+        self.tresholds_listbox.grid()
+        f = tk.Frame(self.treshold_tab)
+        tk.Button(f, text="nieuw", command=self.parent.add_waypoint).grid(row=0, column=1, pady=5, padx=5)
+        tk.Button(f, text="edit", command=self.parent.edit_waypoint).grid(row=0,column=0, pady=5, padx=5)
+        tk.Button(f, text="delete", command=self.parent.delete_waypoint).grid(row=0,column=2, pady=5, padx=5)
+        f.grid(sticky=tk.E)
+
+
+        tabs.add(self.treshold_tab, text="Drempels")
+
+        self.connections_tab = tk.Frame(tabs)
+        if user == "admin":
+            tabs.add(self.connections_tab, text="Connecties")
+
+        self.routes_tab = ttk.Frame(tabs)
+        tabs.add(self.routes_tab, text="Routes")
+        tabs.grid()
+
+    def fill_tresholds_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
+        '''to fill the listbox with waypoint data'''
+        for route_point in waypoints.values():
+            self.tresholds_listbox.insert(tk.END,
+                            (route_point.name, \
+                            speeds[int(route_point.speed_id)], \
+                            route_point.depth_outgoing, \
+                            route_point.depth_ingoing, \
+                            deviations[int(route_point.deviation_id)], \
+                            "{0}{1}".format(route_point.UKC_value, ukc_units[int(route_point.UKC_unit_id)]) , \
+                            tidal_points[int(route_point.tidal_point_id)]))
+
+    def clear_tresholds_listbox(self):
+        '''clears the listbox of all data'''
+        self.tresholds_listbox.delete(0, self.tresholds_listbox.size())
+
+
+
+class Waypointframe(tk.Frame):
+    '''creates a frame with a listbox to display waypoints'''
+    def __init__(self, parent):
+        self.parent = parent
+        tk.Frame.__init__(self, parent)
+        self.lb = MultiListbox(self, (('Naam', 20), \
+                                     ('snelheid', 12), \
+                                     ('waterdiepte Afvaart', 10), \
+                                     ('waterdiepte Opvaart', 10), \
+                                     ('afwijking waterstand', 7), \
+                                     ('UKC', 10), \
+                                     ('getijdetabel', 12)))
+        self.lb.grid(row=0,column=0, sticky=tk.W)
+        f = tk.Frame(self)
+        tk.Button(f, text="nieuw", command=self.parent.add_waypoint).grid(row=0, column=1, pady=5, padx=5)
+        tk.Button(f, text="edit", command=self.parent.edit_waypoint).grid(row=0,column=0, pady=5, padx=5)
+        tk.Button(f, text="delete", command=self.parent.delete_waypoint).grid(row=0,column=2, pady=5, padx=5)
+        f.grid(sticky=tk.E)
+
+    def fill_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
+        '''to fill the listbox with waypoint data'''
+        for route_point in waypoints.values():
+            self.lb.insert(tk.END,
+                            (route_point.name, \
+                            speeds[int(route_point.speed_id)], \
+                            route_point.depth_outgoing, \
+                            route_point.depth_ingoing, \
+                            deviations[int(route_point.deviation_id)], \
+                            "{0}{1}".format(route_point.UKC_value, ukc_units[int(route_point.UKC_unit_id)]) , \
+                            tidal_points[int(route_point.tidal_point_id)]))
+    def clear_listbox(self):
+        '''clears the listbox of all data'''
+        self.lb.delete(0, self.lb.size())
 
 
 
@@ -953,41 +1039,6 @@ class ConnectionsFrame(tk.Frame):
     def clear_listbox(self):
         '''clears the listbox of all data'''
         self.lb.delete(0, self.lb.size())
-
-class Waypointframe(tk.Frame):
-    '''creates a frame with a listbox to display waypoints'''
-    def __init__(self, parent):
-        self.parent = parent
-        tk.Frame.__init__(self, parent)
-        self.lb = MultiListbox(self, (('Naam', 20), \
-                                     ('snelheid', 12), \
-                                     ('waterdiepte Afvaart', 10), \
-                                     ('waterdiepte Opvaart', 10), \
-                                     ('afwijking waterstand', 7), \
-                                     ('UKC', 10), \
-                                     ('getijdetabel', 12)))
-        self.lb.grid(row=0,column=0, sticky=tk.W)
-        f = tk.Frame(self)
-        tk.Button(f, text="nieuw", command=self.parent.add_waypoint).grid(row=0, column=1, pady=5, padx=5)
-        tk.Button(f, text="edit", command=self.parent.edit_waypoint).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_waypoint).grid(row=0,column=2, pady=5, padx=5)
-        f.grid(sticky=tk.E)
-
-    def fill_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
-        '''to fill the listbox with waypoint data'''
-        for route_point in waypoints.values():
-            self.lb.insert(tk.END,
-                            (route_point.name, \
-                            speeds[int(route_point.speed_id)], \
-                            route_point.depth_outgoing, \
-                            route_point.depth_ingoing, \
-                            deviations[int(route_point.deviation_id)], \
-                            "{0}{1}".format(route_point.UKC_value, ukc_units[int(route_point.UKC_unit_id)]) , \
-                            tidal_points[int(route_point.tidal_point_id)]))
-    def clear_listbox(self):
-        '''clears the listbox of all data'''
-        self.lb.delete(0, self.lb.size())
-
 
 class MenuBar(tk.Menu):
     '''The menubar for the application'''

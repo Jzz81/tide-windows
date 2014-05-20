@@ -95,17 +95,6 @@ class Application(tk.Frame):
         return td_calc.global_window
 
 #fill listboxes
-    def fill_waypoint_listbox(self):
-        '''fill the waypoint listbox with data'''
-        self.waypointframe.clear_listbox()
-        route_points = self.routing_data.route_points
-        ukc_units = self.misc_data.UKC_units
-        deviations = self.misc_data.deviations
-        speeds = self.misc_data.speeds
-        tidal_points = self.database.tidal_points
-
-        self.waypointframe.fill_listbox(route_points,ukc_units,deviations,speeds, tidal_points)
-
     def fill_connections_listbox(self):
         '''fill the connections listbox with data'''
         self.connections_frame.clear_listbox()
@@ -118,10 +107,24 @@ class Application(tk.Frame):
         '''fill the routes listbox with data'''
         self.routes_frame.fill_routes_listbox(self.routing_data.routes, self.routing_data.route_points, self.routing_data.connections)
 
+    def fill_waypoint_listbox(self):
+        '''fill the waypoint listbox with data'''
+        self.config_frame.clear_tresholds_listbox()
+        route_points = self.routing_data.route_points
+        ukc_units = self.misc_data.UKC_units
+        deviations = self.misc_data.deviations
+        speeds = self.misc_data.speeds
+        tidal_points = self.database.tidal_points
+
+        self.config_frame.fill_tresholds_listbox(route_points,ukc_units,deviations,speeds, tidal_points)
+
+
 #display / hide section
     def display_config_screen(self):
         '''display a toplevel that holds the config screen'''
-        pass
+        self.config_frame = GUI_helper.config_screen_frame(self, self.user)
+        self.config_frame.grid()
+        self.fill_waypoint_listbox()
 
     def display_routes_frame(self):
         '''display the routes frame'''
@@ -232,7 +235,7 @@ class Application(tk.Frame):
         '''deletes the selected waypoint from the listbox'''
         i = self.selected_waypoint_index()
         if i == None: return
-        self.waypointframe.lb.delete(i)
+        self.config_frame.tresholds_listbox.delete(i)
 
     def delete_waypoint_from_database(self, id):
         '''deletes a waypoint from the database'''
@@ -242,7 +245,7 @@ class Application(tk.Frame):
         '''deletes a waypoint from listbox and database'''
         i = self.selected_waypoint_index()
         if i == None: return
-        selected_wp_name = self.waypointframe.lb.get(i)[0]
+        selected_wp_name = self.config_frame.tresholds_listbox.get(i)[0]
         self.wp = self.routing_data.route_points[selected_wp_name]
         id = self.wp.id
         self.wp = None
@@ -354,8 +357,8 @@ class Application(tk.Frame):
 
     def selected_waypoint_index(self):
         '''returns the index of the selected waypoint in the waypointframe'''
-        if len(self.waypointframe.lb.curselection()) > 0:
-            return  self.waypointframe.lb.curselection()[0]
+        if len(self.config_frame.tresholds_listbox.curselection()) > 0:
+            return  self.config_frame.tresholds_listbox.curselection()[0]
 
     def retreive_wp_data_from_form(self):
         #retreive values from form:
@@ -391,7 +394,7 @@ class Application(tk.Frame):
         if i == None: return
         self.modify_waypoint("Drempel aanpassen")
 
-        selected_wp_name = self.waypointframe.lb.get(i)[0]
+        selected_wp_name = self.config_frame.tresholds_listbox.get(i)[0]
         self.wp = self.routing_data.route_points[selected_wp_name]
 
         ukc_units  = self.misc_data.UKC_units
