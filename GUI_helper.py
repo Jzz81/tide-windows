@@ -22,6 +22,47 @@ def convert_local_time_to_UTC(localtime):
     localized_time = pytz.timezone("Europe/Amsterdam").localize(localtime)
     return localized_time.astimezone(pytz.utc).replace(tzinfo=None)
 
+
+
+class login_screen_toplevel(tk.Toplevel):
+    '''displays a login screen that will default to a normal user, has Admin as 2nd'''
+    def __init__(self, parent):
+        tk.Toplevel.__init__(self, parent)
+        self.parent = parent
+
+        users = ["gebruiker", "Admin"]
+
+        r = 0
+        #user label and optionmenu
+        self.user_label = tk.Label(self, text="programma gebruiken als:")
+        self.user_label.grid(row=r, column=0)
+        r += 1
+        self.selected_user = tk.StringVar()
+        self.user_option = tk.OptionMenu(self, self.selected_user, *users)
+        self.user_option.grid(row=r, column=0)
+        self.selected_user.set(users[0])
+        self.password_entry = tk.Entry(self, show='*')
+        self.selected_user.trace("w", self.__show_password_box)
+
+        r += 2 #skip one row to account for the password box
+
+        self.ok_button = tk.Button(self, text='Ok', command=self.__login)
+        self.ok_button.grid(row=r,column=0)
+
+    def __login(self):
+        '''check password and login'''
+        if self.selected_user.get() == "Admin" and self.password_entry.get() == "gnaPass":
+            self.parent.set_user("admin")
+        if self.selected_user.get() == "gebruiker":
+            self.parent.set_user("user")
+
+    def __show_password_box(self, *args):
+        '''show the entry box to input a password'''
+        if self.selected_user.get() == "Admin":
+            self.password_entry.grid(row=2, column=0)
+        else:
+            self.password_entry.grid_forget()
+
 class modify_route_toplevel(tk.Toplevel):
     def __init__(self, parent, title, waypoints, connections, route, speeds, UKC_units):
         tk.Toplevel.__init__(self,parent)
@@ -957,12 +998,7 @@ class MenuBar(tk.Menu):
         fileMenu = tk.Menu(self)
         fileMenu.add_command(label="Exit", command=parent.onExit)
         dataMenu = tk.Menu(self)
-        dataMenu.add_command(label="waypoints", command=parent.display_waypoint_frame)
-        dataMenu.add_command(label="hide waypoints", command=parent.hide_waypoint_frame)
-        dataMenu.add_command(label="connections", command=parent.display_connections_frame)
-        dataMenu.add_command(label="hide connections", command=parent.hide_connections_frame)
-        dataMenu.add_command(label="routes", command=parent.display_routes_frame)
-        dataMenu.add_command(label="hide routes", command=parent.hide_routes_frame)
+        dataMenu.add_command(label="configuratie", command=parent.display_config_screen)
 
         self.add_cascade(label="File", menu=fileMenu)
         self.add_cascade(label="Data", menu=dataMenu)

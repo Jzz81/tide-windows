@@ -27,12 +27,15 @@ class Application(tk.Frame):
             os.makedirs(self.local_db_directory)
         self.nw_db_directory = r"\\srkgna\personal\GNA\databaseHVL\Wespy"
 
+        self.load_login_toplevel()
+
         self.__initDB()
 
         self.misc_data = Misc_classes.misc_data(self.database.local_program_database_path)
         self.routing_data = Routing.StoredRoutepoints(self.database.local_program_database_path)
 
         self.__initUI()
+
 ##        self.make_tidal_calculations()
 
     def __initUI(self):
@@ -47,12 +50,22 @@ class Application(tk.Frame):
         self.routes_frame = GUI_helper.RoutesFrame(self)
         self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
         self.tidal_grapth_frame = GUI_helper.TidalWindowsGraphFrame(self)
-        self.display_tidal_calculations_frame()#DEBUG
+
 
     def __initDB(self):
         '''initializes the database and, if nessesary, converts the Access DB to import data'''
         self.database = Database.Database(self, self.nw_db_directory, self.local_db_directory)
         print "Tidal data available"
+
+    def set_user(self, user):
+        '''set the user to admin or user'''
+        self.user = user
+        self.top.destroy()
+        if self.user == "admin":
+            self.parent.title("GNA Tijpoorten *** ADMIN ***")
+        else:
+            self.parent.title("GNA Tijpoorten")
+
 
     def calculate_first_possible_window(self,
                                         ship_type,
@@ -106,6 +119,10 @@ class Application(tk.Frame):
         self.routes_frame.fill_routes_listbox(self.routing_data.routes, self.routing_data.route_points, self.routing_data.connections)
 
 #display / hide section
+    def display_config_screen(self):
+        '''display a toplevel that holds the config screen'''
+        pass
+
     def display_routes_frame(self):
         '''display the routes frame'''
         self.routes_frame.grid()
@@ -253,6 +270,10 @@ class Application(tk.Frame):
         self.make_top_modal()
 
 #load toplevel section
+    def load_login_toplevel(self):
+        self.top = GUI_helper.login_screen_toplevel(self)
+        self.make_top_modal(150,100)
+
     def load_routes_toplevel(self, title):
         waypoints = self.routing_data.route_points
         connections = self.routing_data.connections
@@ -395,10 +416,8 @@ class Application(tk.Frame):
         self.delete_waypoint_from_listbox()
         self.make_top_modal()
 
-    def make_top_modal(self):
+    def make_top_modal(self, width=300, height=400):
         '''make the toplevel window modal'''
-        width = 300
-        height = 400
         xoffset = 200
         yoffset = 100
         self.top.geometry("%dx%d%+d%+d" % (width, height, xoffset, yoffset))

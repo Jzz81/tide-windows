@@ -14,7 +14,8 @@ version 0.1
   -visualize this tidal window in a graph
 
 TODO:
--improve GUI (possible try other GUI protocols (wxWidget))
+-improve GUI
+-add user profiles (user/administrator
 -expand calculation possebilities (RTA / current window / etc)
 -import and store high and low waters as well
 -etc
