@@ -46,7 +46,7 @@ class Application(tk.Frame):
         self.connections_frame = GUI_helper.ConnectionsFrame(self)
         self.routes_frame = GUI_helper.RoutesFrame(self)
         self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
-        self.tidal_grapth_frame = GUI_helper.TidalWindowsGraphFrame(self)
+        self.tidal_graph_frame = GUI_helper.TidalWindowsGraphFrame(self)
         self.display_tidal_calculations_frame()#DEBUG
 
     def __initDB(self):
@@ -78,7 +78,7 @@ class Application(tk.Frame):
                                                 numpy_dict=self.database.tidal_data_arrays)
         td_calc.calculate_first_possible_ETA()
         td_calc.get_global_window()
-        self.tidal_grapth_frame.fill_tidal_graph(td_calc)
+        self.tidal_graph_frame.fill_tidal_graph(td_calc)
         return td_calc.global_window
 
 #fill listboxes
@@ -133,15 +133,17 @@ class Application(tk.Frame):
         '''hide the waypoints listbox frame'''
         self.waypointframe.grid_forget()
 
+
     def display_tidal_calculations_frame(self):
         self.tidal_calculations_frame.grid()
         self.tidal_calculations_frame.fill_data(routes=self.routing_data.routes,
                                                 deviations=self.misc_data.deviations,
                                                 ship_types=self.misc_data.ship_types)
-        self.tidal_grapth_frame.grid()
+        self.tidal_graph_frame.grid()
 
     def hide_tidal_calculations_frame(self):
         self.tidal_calculations_frame.grid_forget()
+        self.tidal_graph_frame.grid_forget()
 
 
     def onExit(self):

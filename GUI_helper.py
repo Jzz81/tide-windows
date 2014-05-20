@@ -963,6 +963,8 @@ class MenuBar(tk.Menu):
         dataMenu.add_command(label="hide connections", command=parent.hide_connections_frame)
         dataMenu.add_command(label="routes", command=parent.display_routes_frame)
         dataMenu.add_command(label="hide routes", command=parent.hide_routes_frame)
+        dataMenu.add_command(label="calculations (ETA)", command=parent.display_tidal_calculations_frame)
+        dataMenu.add_command(label="hide calculations", command=parent.hide_tidal_calculations_frame)
 
         self.add_cascade(label="File", menu=fileMenu)
         self.add_cascade(label="Data", menu=dataMenu)
