@@ -109,14 +109,17 @@ class Application(tk.Frame):
 
     def fill_waypoint_listbox(self):
         '''fill the waypoint listbox with data'''
-        self.config_frame.clear_tresholds_listbox()
+        self.config_frame.clear_tresholds_listbox(self.user)
         route_points = self.routing_data.route_points
-        ukc_units = self.misc_data.UKC_units
-        deviations = self.misc_data.deviations
-        speeds = self.misc_data.speeds
-        tidal_points = self.database.tidal_points
+        if self.user == "admin":
+            ukc_units = self.misc_data.UKC_units
+            deviations = self.misc_data.deviations
+            speeds = self.misc_data.speeds
+            tidal_points = self.database.tidal_points
 
-        self.config_frame.fill_tresholds_listbox(route_points,ukc_units,deviations,speeds, tidal_points)
+            self.config_frame.fill_tresholds_admin_listbox(route_points,ukc_units,deviations,speeds, tidal_points)
+        else:
+            self.config_frame.fill_tresholds_user_listbox(route_points)
 
 
 #display / hide section
@@ -235,7 +238,10 @@ class Application(tk.Frame):
         '''deletes the selected waypoint from the listbox'''
         i = self.selected_waypoint_index()
         if i == None: return
-        self.config_frame.tresholds_listbox.delete(i)
+        if self.user == "admin":
+            self.config_frame.tresholds_admin_listbox.delete(i)
+        else:
+            self.config_frame.tresholds_user_listbox.delete(i)
 
     def delete_waypoint_from_database(self, id):
         '''deletes a waypoint from the database'''
@@ -245,10 +251,9 @@ class Application(tk.Frame):
         '''deletes a waypoint from listbox and database'''
         i = self.selected_waypoint_index()
         if i == None: return
-        selected_wp_name = self.config_frame.tresholds_listbox.get(i)[0]
+        selected_wp_name = self.selected_waypoint_name(i)
         self.wp = self.routing_data.route_points[selected_wp_name]
         id = self.wp.id
-        self.wp = None
         self.delete_waypoint_from_listbox()
         self.delete_waypoint_from_database(id)
 
@@ -337,7 +342,7 @@ class Application(tk.Frame):
         tidal_points = self.database.tidal_points
         speeds = self.misc_data.speeds
 
-        self.top = GUI_helper.modify_waypoint_toplevel(self, title, ukc_units, deviations, tidal_points, speeds)
+        self.top = GUI_helper.modify_waypoint_toplevel(self, self.user, title, ukc_units, deviations, tidal_points, speeds)
 
     def insert_waypoint_data(self):
         self.wp = Routing.Treshold()
@@ -357,8 +362,13 @@ class Application(tk.Frame):
 
     def selected_waypoint_index(self):
         '''returns the index of the selected waypoint in the waypointframe'''
-        if len(self.config_frame.tresholds_listbox.curselection()) > 0:
-            return  self.config_frame.tresholds_listbox.curselection()[0]
+        if self.user == "admin":
+            if len(self.config_frame.tresholds_admin_listbox.curselection()) > 0:
+                return  self.config_frame.tresholds_admin_listbox.curselection()[0]
+        else:
+            if len(self.config_frame.tresholds_user_listbox.curselection()) > 0:
+                return  self.config_frame.tresholds_user_listbox.curselection()[0]
+
 
     def retreive_wp_data_from_form(self):
         #retreive values from form:
@@ -376,6 +386,11 @@ class Application(tk.Frame):
         self.wp.UKC_value = self.top.wp_UKC_value_entry.get()
         self.wp.tidal_point_id = tidal_points.keys()[tidal_points.values().index(self.top.tidal_point.get())]
 
+    def selected_waypoint_name(self, index):
+        if self.user == "admin":
+            return self.config_frame.tresholds_admin_listbox.get(index)[0]
+        else:
+            return self.config_frame.tresholds_user_listbox.get(index)[0]
 
     def update_waypoint(self):
         '''receives updated waypoint data from the edit window'''
@@ -392,9 +407,10 @@ class Application(tk.Frame):
         '''edits an exitsting waypoint'''
         i = self.selected_waypoint_index()
         if i == None: return
+        #load toplevel
         self.modify_waypoint("Drempel aanpassen")
 
-        selected_wp_name = self.config_frame.tresholds_listbox.get(i)[0]
+        selected_wp_name = self.selected_waypoint_name(i)
         self.wp = self.routing_data.route_points[selected_wp_name]
 
         ukc_units  = self.misc_data.UKC_units
@@ -404,13 +420,14 @@ class Application(tk.Frame):
 
         #set values from wp:
         self.top.wp_name_entry.insert(0,self.wp.name)
-        self.top.Default_speed.set(speeds[int(self.wp.speed_id)])
         self.top.wp_depth_outgoing_entry.insert(0,self.wp.depth_outgoing)
         self.top.wp_depth_ingoing_entry.insert(0,self.wp.depth_ingoing)
-        self.top.deviation.set(deviations[int(self.wp.deviation_id)])
-        self.top.Default_UKC.set(ukc_units[int(self.wp.UKC_unit_id)])
-        self.top.wp_UKC_value_entry.insert(0,self.wp.UKC_value)
-        self.top.tidal_point.set(tidal_points[int(self.wp.tidal_point_id)])
+        if self.user == "admin":
+            self.top.Default_speed.set(speeds[int(self.wp.speed_id)])
+            self.top.deviation.set(deviations[int(self.wp.deviation_id)])
+            self.top.Default_UKC.set(ukc_units[int(self.wp.UKC_unit_id)])
+            self.top.wp_UKC_value_entry.insert(0,self.wp.UKC_value)
+            self.top.tidal_point.set(tidal_points[int(self.wp.tidal_point_id)])
 
         #hide cancel button
         self.top.cancel_button.grid_forget()

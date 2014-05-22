@@ -31,18 +31,27 @@ class config_screen_frame(tk.Frame):
         tabs = ttk.Notebook(self)
         #tresholds tab:
         self.treshold_tab = ttk.Frame(tabs)
-        self.tresholds_listbox = MultiListbox(self.treshold_tab, (('Naam', 20), \
+        self.tresholds_admin_listbox = MultiListbox(self.treshold_tab, (('Naam', 20), \
                                      ('snelheid', 12), \
                                      ('waterdiepte Afvaart', 10), \
                                      ('waterdiepte Opvaart', 10), \
                                      ('afwijking waterstand', 7), \
                                      ('UKC', 10), \
                                      ('getijdetabel', 12)))
-        self.tresholds_listbox.grid()
+        self.tresholds_user_listbox = MultiListbox(self.treshold_tab, (("Naam", 20), \
+                                     ('waterdiepte Afvaart', 10), \
+                                     ('waterdiepte Opvaart', 10)))
+        if user == "admin":
+            self.tresholds_admin_listbox.grid()
+        else:
+            self.tresholds_user_listbox.grid()
+
         f = tk.Frame(self.treshold_tab)
-        tk.Button(f, text="nieuw", command=self.parent.add_waypoint).grid(row=0, column=1, pady=5, padx=5)
+        if user == "admin":
+            tk.Button(f, text="nieuw", command=self.parent.add_waypoint).grid(row=0, column=1, pady=5, padx=5)
+            tk.Button(f, text="delete", command=self.parent.delete_waypoint).grid(row=0,column=2, pady=5, padx=5)
+
         tk.Button(f, text="edit", command=self.parent.edit_waypoint).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_waypoint).grid(row=0,column=2, pady=5, padx=5)
         f.grid(sticky=tk.E)
 
 
@@ -56,10 +65,18 @@ class config_screen_frame(tk.Frame):
         tabs.add(self.routes_tab, text="Routes")
         tabs.grid()
 
-    def fill_tresholds_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
-        '''to fill the listbox with waypoint data'''
+    def fill_tresholds_user_listbox(self, waypoints):
+        '''to fill the user listbox with waypoint data'''
         for route_point in waypoints.values():
-            self.tresholds_listbox.insert(tk.END,
+            self.tresholds_user_listbox.insert(tk.END,
+                                            (route_point.name,
+                                            route_point.depth_outgoing,
+                                            route_point.depth_ingoing))
+
+    def fill_tresholds_admin_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
+        '''to fill the admin listbox with waypoint data'''
+        for route_point in waypoints.values():
+            self.tresholds_admin_listbox.insert(tk.END,
                             (route_point.name, \
                             speeds[int(route_point.speed_id)], \
                             route_point.depth_outgoing, \
@@ -68,11 +85,12 @@ class config_screen_frame(tk.Frame):
                             "{0}{1}".format(route_point.UKC_value, ukc_units[int(route_point.UKC_unit_id)]) , \
                             tidal_points[int(route_point.tidal_point_id)]))
 
-    def clear_tresholds_listbox(self):
+    def clear_tresholds_listbox(self, user):
         '''clears the listbox of all data'''
-        self.tresholds_listbox.delete(0, self.tresholds_listbox.size())
-
-
+        if user == "admin":
+            self.tresholds_admin_listbox.delete(0, self.tresholds_admin_listbox.size())
+        else:
+            self.tresholds_user_listbox.delete(0, self.tresholds_user_listbox.size())
 
 class Waypointframe(tk.Frame):
     '''creates a frame with a listbox to display waypoints'''
@@ -382,7 +400,7 @@ class modify_connection_toplevel(tk.Toplevel):
 
 
 class modify_waypoint_toplevel(tk.Toplevel):
-    def __init__(self, parent, title, UKC_units, deviations, tidal_points, speeds):
+    def __init__(self, parent, user, title, UKC_units = None, deviations = None, tidal_points = None, speeds = None):
         tk.Toplevel.__init__(self,parent)
         self.parent = parent
 
@@ -396,12 +414,13 @@ class modify_waypoint_toplevel(tk.Toplevel):
         self.wp_name_entry.grid(row=r, column=1)
         r += 1
 
-        tk.Label(dataframe,text="Default snelheid:").grid(row=r, column=0, sticky=tk.E)
-        self.Default_speed = tk.StringVar(self)
-        self.Default_speed.set(speeds[min(speeds)])
-        self.wp_speed_option = tk.OptionMenu(dataframe, self.Default_speed, *speeds.values())
-        self.wp_speed_option.grid(row=r, column=1, sticky=tk.W)
-        r += 1
+        if user == "admin":
+            tk.Label(dataframe,text="Default snelheid:").grid(row=r, column=0, sticky=tk.E)
+            self.Default_speed = tk.StringVar(self)
+            self.Default_speed.set(speeds[min(speeds)])
+            self.wp_speed_option = tk.OptionMenu(dataframe, self.Default_speed, *speeds.values())
+            self.wp_speed_option.grid(row=r, column=1, sticky=tk.W)
+            r += 1
 
         tk.Label(dataframe, text="Diepte afvarend:").grid(row=r, column=0, sticky=tk.E)
         self.wp_depth_outgoing_entry = tk.Entry(dataframe)
@@ -413,31 +432,32 @@ class modify_waypoint_toplevel(tk.Toplevel):
         self.wp_depth_ingoing_entry.grid(row=r, column=1)
         r += 1
 
-        tk.Label(dataframe,text="Afwijking waterstand:").grid(row=r, column=0, sticky=tk.E)
-        self.deviation = tk.StringVar(self)
-        self.deviation.set(deviations[min(deviations)])
-        self.wp_deviation_option = tk.OptionMenu(dataframe, self.deviation, *deviations.values())
-        self.wp_deviation_option.grid(row=r, column=1, sticky=tk.W)
-        r += 1
+        if user == "admin":
+            tk.Label(dataframe,text="Afwijking waterstand:").grid(row=r, column=0, sticky=tk.E)
+            self.deviation = tk.StringVar(self)
+            self.deviation.set(deviations[min(deviations)])
+            self.wp_deviation_option = tk.OptionMenu(dataframe, self.deviation, *deviations.values())
+            self.wp_deviation_option.grid(row=r, column=1, sticky=tk.W)
+            r += 1
 
-        tk.Label(dataframe, text="UKC unit:").grid(row=r, column=0, sticky=tk.E)
-        self.Default_UKC = tk.StringVar(self)
-        self.Default_UKC.set(UKC_units[min(UKC_units)])
-        self.wp_UKC_unit_option = tk.OptionMenu(dataframe, self.Default_UKC, *UKC_units.values())
-        self.wp_UKC_unit_option.grid(row=r, column=1, sticky=tk.W)
-        r += 1
+            tk.Label(dataframe, text="UKC unit:").grid(row=r, column=0, sticky=tk.E)
+            self.Default_UKC = tk.StringVar(self)
+            self.Default_UKC.set(UKC_units[min(UKC_units)])
+            self.wp_UKC_unit_option = tk.OptionMenu(dataframe, self.Default_UKC, *UKC_units.values())
+            self.wp_UKC_unit_option.grid(row=r, column=1, sticky=tk.W)
+            r += 1
 
-        tk.Label(dataframe, text="UKC waarde:").grid(row=r, column=0, sticky=tk.E)
-        self.wp_UKC_value_entry = tk.Entry(dataframe)
-        self.wp_UKC_value_entry.grid(row=r, column=1)
-        r += 1
+            tk.Label(dataframe, text="UKC waarde:").grid(row=r, column=0, sticky=tk.E)
+            self.wp_UKC_value_entry = tk.Entry(dataframe)
+            self.wp_UKC_value_entry.grid(row=r, column=1)
+            r += 1
 
-        tk.Label(dataframe, text="getijdetabel:").grid(row=r, column=0, sticky=tk.E)
-        self.tidal_point = tk.StringVar(self)
-        self.tidal_point.set(tidal_points[min(tidal_points)])
-        self.wp_tidal_point_option = tk.OptionMenu(dataframe, self.tidal_point, *tidal_points.values())
-        self.wp_tidal_point_option.grid(row=r, column=1, sticky=tk.W)
-        r += 1
+            tk.Label(dataframe, text="getijdetabel:").grid(row=r, column=0, sticky=tk.E)
+            self.tidal_point = tk.StringVar(self)
+            self.tidal_point.set(tidal_points[min(tidal_points)])
+            self.wp_tidal_point_option = tk.OptionMenu(dataframe, self.tidal_point, *tidal_points.values())
+            self.wp_tidal_point_option.grid(row=r, column=1, sticky=tk.W)
+            r += 1
 
         dataframe.grid(row=0, column=0, padx=10, pady=10)
 
