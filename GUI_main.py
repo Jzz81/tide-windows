@@ -20,6 +20,8 @@ class Application(tk.Frame):
         tk.Frame.__init__(self, parent, *args, **kwargs)
 
         self.parent = parent
+        self.parent.title("GNA Tijpoorten")
+
         #set path for SQLite db:
         dir = "{0}\Wespy".format(os.environ["LOCALAPPDATA"])
         self.local_db_directory = dir
@@ -27,6 +29,7 @@ class Application(tk.Frame):
             os.makedirs(self.local_db_directory)
         self.nw_db_directory = r"\\srkgna\personal\GNA\databaseHVL\Wespy"
 
+        self.user = "user"
         self.load_login_toplevel()
 
         self.__initDB()
@@ -40,12 +43,9 @@ class Application(tk.Frame):
 
     def __initUI(self):
 
-        self.parent.title("GNA Tijpoorten")
-
         menubar = GUI_helper.MenuBar(self)
         self.parent.config(menu=menubar)
 
-        self.waypointframe = GUI_helper.Waypointframe(self)
         self.connections_frame = GUI_helper.ConnectionsFrame(self)
         self.routes_frame = GUI_helper.RoutesFrame(self)
         self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
@@ -105,7 +105,7 @@ class Application(tk.Frame):
 
     def fill_routes_listbox(self):
         '''fill the routes listbox with data'''
-        self.routes_frame.fill_routes_listbox(self.routing_data.routes, self.routing_data.route_points, self.routing_data.connections)
+        self.config_frame.fill_routes_listbox(self.routing_data.routes, self.routing_data.route_points, self.routing_data.connections)
 
     def fill_waypoint_listbox(self):
         '''fill the waypoint listbox with data'''
@@ -124,10 +124,11 @@ class Application(tk.Frame):
 
 #display / hide section
     def display_config_screen(self):
-        '''display a toplevel that holds the config screen'''
-        self.config_frame = GUI_helper.config_screen_frame(self, self.user)
-        self.config_frame.grid()
+        '''display a frame that holds the config screen'''
+        self.config_frame = GUI_helper.config_screen_frame(self, self.user, bg="white")
+        self.config_frame.grid(padx=10)
         self.fill_waypoint_listbox()
+        self.fill_routes_listbox()
 
     def display_routes_frame(self):
         '''display the routes frame'''
@@ -213,8 +214,8 @@ class Application(tk.Frame):
 
     def selected_route_index(self):
         '''returns the index of the selected route in the routeframe'''
-        if len(self.routes_frame.route_lb.curselection()) > 0:
-            return self.routes_frame.route_lb.curselection()
+        if len(self.config_frame.route_lb.curselection()) > 0:
+            return self.config_frame.route_lb.curselection()
 
     def selected_connection_index(self):
         '''returns the index of the selected waypoint in the waypointframe'''
@@ -257,18 +258,19 @@ class Application(tk.Frame):
         self.delete_waypoint_from_listbox()
         self.delete_waypoint_from_database(id)
 
-    def delete_route_from_listbox(self):
-        i= self.selected_route_index()
-        if i == None: return
-        self.routes_frame.route_lb.delete(i)
-        self.routes_frame.clear_routepoints_listbox()
+    def delete_route_from_listbox(self, index=None):
+        if index == None:
+            index = self.selected_route_index()
+        if index == None: return
+        self.config_frame.route_lb.delete(index)
+        self.config_frame.clear_routepoints_listbox()
 
     def delete_route(self):
         i = self.selected_route_index()
         if i == None: return
-        route_name = self.routes_frame.route_lb.get(i)
+        route_name = self.config_frame.route_lb.get(i)
         self.routing_data.delete_route_from_database(route_name)
-        self.delete_route_from_listbox()
+        self.delete_route_from_listbox(i)
 
     def delete_connection_from_listbox(self):
         '''deletes the selected waypoint from the listbox'''
@@ -378,13 +380,15 @@ class Application(tk.Frame):
         speeds = self.misc_data.speeds
 
         self.wp.name = self.top.wp_name_entry.get()
-        self.wp.speed_id = speeds.keys()[speeds.values().index(self.top.Default_speed.get())]
         self.wp.depth_outgoing = self.top.wp_depth_outgoing_entry.get()
         self.wp.depth_ingoing = self.top.wp_depth_ingoing_entry.get()
-        self.wp.deviation_id = deviations.keys()[deviations.values().index(self.top.deviation.get())]
-        self.wp.UKC_unit_id = ukc_units.keys()[ukc_units.values().index(self.top.Default_UKC.get())]
-        self.wp.UKC_value = self.top.wp_UKC_value_entry.get()
-        self.wp.tidal_point_id = tidal_points.keys()[tidal_points.values().index(self.top.tidal_point.get())]
+
+        if self.user == "admin":
+            self.wp.speed_id = speeds.keys()[speeds.values().index(self.top.Default_speed.get())]
+            self.wp.deviation_id = deviations.keys()[deviations.values().index(self.top.deviation.get())]
+            self.wp.UKC_unit_id = ukc_units.keys()[ukc_units.values().index(self.top.Default_UKC.get())]
+            self.wp.UKC_value = self.top.wp_UKC_value_entry.get()
+            self.wp.tidal_point_id = tidal_points.keys()[tidal_points.values().index(self.top.tidal_point.get())]
 
     def selected_waypoint_name(self, index):
         if self.user == "admin":
@@ -440,21 +444,25 @@ class Application(tk.Frame):
         '''make the toplevel window modal'''
         xoffset = 200
         yoffset = 100
-        self.top.geometry("%dx%d%+d%+d" % (width, height, xoffset, yoffset))
+        #center of screen:
+        w = self.top.parent.winfo_screenwidth()
+        h = self.top.parent.winfo_screenheight()
+        x = w/2 - width/2
+        y = h/2 - height/2
+        g_string = "{w}x{h}+{x}+{y}".format(w=width, h=height, x=x, y=y)
+        self.top.geometry(g_string)
         self.top.focus_set()
         self.top.grab_set()
         self.top.transient(self)
         self.wait_window(self.top)
 
-
-
 if __name__ == "__main__":
     #start GUI:
     root = tk.Tk()
     #set maximized:
-    #root.wm_state('zoomed')
+    root.wm_state('zoomed')
     #pass to Window class
-    Application(root).pack()
+    Application(root).grid(sticky=tk.W)
     #'send' program into gui loop (to keep program in gui)
     root.mainloop()
 

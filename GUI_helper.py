@@ -24,12 +24,14 @@ def convert_local_time_to_UTC(localtime):
     return localized_time.astimezone(pytz.utc).replace(tzinfo=None)
 
 class config_screen_frame(tk.Frame):
-    def __init__(self, parent, user):
-        tk.Frame.__init__(self,parent)
+    def __init__(self, parent, user, *args, **kwargs):
+        tk.Frame.__init__(self,parent, *args, **kwargs)
         self.parent = parent
 
+        self.relief = tk.RAISED
+
         tabs = ttk.Notebook(self)
-        #tresholds tab:
+        #TRESHOLDS TAB:
         self.treshold_tab = ttk.Frame(tabs)
         self.tresholds_admin_listbox = MultiListbox(self.treshold_tab, (('Naam', 20), \
                                      ('snelheid', 12), \
@@ -57,17 +59,37 @@ class config_screen_frame(tk.Frame):
 
         tabs.add(self.treshold_tab, text="Drempels")
 
+        #CONNECTIONS TAB:
         self.connections_tab = tk.Frame(tabs)
         if user == "admin":
             tabs.add(self.connections_tab, text="Connecties")
 
+        #ROUTES TAB:
         self.routes_tab = ttk.Frame(tabs)
+
+        route_f = tk.Frame(self.routes_tab)
+        tk.Label(route_f, text="routes", borderwidth=1, relief=tk.RAISED).grid(row=0, sticky=tk.W+tk.E)
+        self.route_lb = tk.Listbox(route_f, borderwidth=0, selectborderwidth=0, relief=tk.FLAT, exportselection=tk.FALSE)
+        self.route_lb.grid(row=1,column=0)
+        self.route_lb.bind('<<ListboxSelect>>', self.fill_routepoints_listbox)
+        route_f.grid(row=0, column=0, padx=10)
+
+        self.route_tresholds_lb = MultiListbox(self.routes_tab,(("drempel",20),("afstand",10)))
+        self.route_tresholds_lb.grid(row=0,column=1, sticky=tk.E)
+
+        f = tk.Frame(self.routes_tab)
+        tk.Button(f, text="nieuw", command=self.parent.add_route).grid(row=0, column=1, pady=5, padx=5)
+        tk.Button(f, text="edit", command=self.parent.edit_route).grid(row=0,column=0, pady=5, padx=5)
+        tk.Button(f, text="delete", command=self.parent.delete_route).grid(row=0,column=2, pady=5, padx=5)
+        f.grid(sticky=tk.E, columnspan=2)
+
         tabs.add(self.routes_tab, text="Routes")
-        tabs.grid()
+        tabs.grid(row=0,column=0, sticky=tk.W)
 
     def fill_tresholds_user_listbox(self, waypoints):
         '''to fill the user listbox with waypoint data'''
-        for route_point in waypoints.values():
+        for key in sorted(waypoints.keys(), key=lambda s: s.lower()):
+            route_point = waypoints[key]
             self.tresholds_user_listbox.insert(tk.END,
                                             (route_point.name,
                                             route_point.depth_outgoing,
@@ -75,7 +97,8 @@ class config_screen_frame(tk.Frame):
 
     def fill_tresholds_admin_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
         '''to fill the admin listbox with waypoint data'''
-        for route_point in waypoints.values():
+        for key in sorted(waypoints.keys(), key=lambda s: s.lower()):
+            route_point = waypoints[key]
             self.tresholds_admin_listbox.insert(tk.END,
                             (route_point.name, \
                             speeds[int(route_point.speed_id)], \
@@ -92,48 +115,123 @@ class config_screen_frame(tk.Frame):
         else:
             self.tresholds_user_listbox.delete(0, self.tresholds_user_listbox.size())
 
-class Waypointframe(tk.Frame):
-    '''creates a frame with a listbox to display waypoints'''
+    def fill_routes_listbox(self, routes, waypoints, connections):
+        '''fills the routes listbox with all available routes in the DB'''
+        #store fresh waypoint and connection data:
+        self.waypoints = waypoints
+        self.waypoint_names_by_id = {}
+        self.waypoint_ids_by_name = {}
+        self.route_lb.delete(0, self.route_lb.size())
+        for wp in self.waypoints.values():
+            self.waypoint_names_by_id[wp.id] = wp.name
+            self.waypoint_ids_by_name[wp.name] = wp.id
+
+        self.connections = connections
+        self.routes = routes
+        for r in routes.keys():
+            self.route_lb.insert(tk.END, r)
+
+    def fill_routepoints_listbox(self, *args):
+        '''fills the routepoints listbox with waypoints of the selected route'''
+        route_name = self.route_lb.get(self.route_lb.curselection())
+        r = self.routes[route_name]
+        self.clear_routepoints_listbox()
+        #loop routepoints to insert:
+        distance = 0
+        last_waypoint_id = -1
+        for rp in range(1, r.amount_of_routepoints + 1):
+            wp = r.routepoints[rp]
+            wp_id = wp["id"]
+            wp_name = self.waypoint_names_by_id[wp_id]
+            if last_waypoint_id > -1:
+                distance += round(self.__get_distance_from_connections(wp_id, last_waypoint_id),2)
+            self.route_tresholds_lb.insert(tk.END, (wp_name, str(distance)))
+            last_waypoint_id = wp_id
+
+    def clear_routepoints_listbox(self):
+        self.route_tresholds_lb.delete(0, self.route_tresholds_lb.size())
+
+    def __get_distance_from_connections(self, id_1, id_2):
+        '''will return the distance between the 2 wp id's'''
+        for con in self.connections.values():
+            if (id_1 == con[0] and id_2 == con[1]) or (id_1 == con[1] and id_2 == con[0]):
+                return con[2]
+
+
+
+class RoutesFrame(tk.Frame):
+    '''creates a frame with everything to make routes'''
     def __init__(self, parent):
         self.parent = parent
         tk.Frame.__init__(self, parent)
-        self.lb = MultiListbox(self, (('Naam', 20), \
-                                     ('snelheid', 12), \
-                                     ('waterdiepte Afvaart', 10), \
-                                     ('waterdiepte Opvaart', 10), \
-                                     ('afwijking waterstand', 7), \
-                                     ('UKC', 10), \
-                                     ('getijdetabel', 12)))
-        self.lb.grid(row=0,column=0, sticky=tk.W)
+        #make 2 listboxes, one single, with a list of stored routes
+        #and 1 multi, with the waypoints in that route and the distances (cumulative)
+        #a 'new route' button, an 'edit route' button and a 'delete route' button
+
+        route_f = tk.Frame(self)
+        tk.Label(route_f, text="routes", borderwidth=1, relief=tk.RAISED).grid(row=0, sticky=tk.W+tk.E)
+        self.route_lb = tk.Listbox(route_f, borderwidth=0, selectborderwidth=0, relief=tk.FLAT, exportselection=tk.FALSE)
+        self.route_lb.grid(row=1,column=0)
+        self.route_lb.bind('<<ListboxSelect>>', self.fill_routepoints_listbox)
+        route_f.grid(row=0, column=0, padx=10)
+
+        self.route_tresholds_lb = MultiListbox(self,(("drempel",20),("afstand",10)))
+        self.route_tresholds_lb.grid(row=0,column=1, sticky=tk.E)
+
         f = tk.Frame(self)
-        tk.Button(f, text="nieuw", command=self.parent.add_waypoint).grid(row=0, column=1, pady=5, padx=5)
-        tk.Button(f, text="edit", command=self.parent.edit_waypoint).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_waypoint).grid(row=0,column=2, pady=5, padx=5)
-        f.grid(sticky=tk.E)
+        tk.Button(f, text="nieuw", command=self.parent.add_route).grid(row=0, column=1, pady=5, padx=5)
+        tk.Button(f, text="edit", command=self.parent.edit_route).grid(row=0,column=0, pady=5, padx=5)
+        tk.Button(f, text="delete", command=self.parent.delete_route).grid(row=0,column=2, pady=5, padx=5)
+        f.grid(sticky=tk.E, columnspan=2)
 
-    def fill_listbox(self, waypoints, ukc_units, deviations, speeds, tidal_points):
-        '''to fill the listbox with waypoint data'''
-        for route_point in waypoints.values():
-            self.lb.insert(tk.END,
-                            (route_point.name, \
-                            speeds[int(route_point.speed_id)], \
-                            route_point.depth_outgoing, \
-                            route_point.depth_ingoing, \
-                            deviations[int(route_point.deviation_id)], \
-                            "{0}{1}".format(route_point.UKC_value, ukc_units[int(route_point.UKC_unit_id)]) , \
-                            tidal_points[int(route_point.tidal_point_id)]))
-    def clear_listbox(self):
-        '''clears the listbox of all data'''
-        self.lb.delete(0, self.lb.size())
+    def fill_routes_listbox(self, routes, waypoints, connections):
+        '''fills the routes listbox with all available routes in the DB'''
+        #store fresh waypoint and connection data:
+        self.waypoints = waypoints
+        self.waypoint_names_by_id = {}
+        self.waypoint_ids_by_name = {}
+        self.route_lb.delete(0, self.route_lb.size())
+        for wp in self.waypoints.values():
+            self.waypoint_names_by_id[wp.id] = wp.name
+            self.waypoint_ids_by_name[wp.name] = wp.id
 
+        self.connections = connections
+        self.routes = routes
+        for r in routes.keys():
+            self.route_lb.insert(tk.END, r)
 
+    def fill_routepoints_listbox(self, *args):
+        '''fills the routepoints listbox with waypoints of the selected route'''
+        route_name = self.route_lb.get(self.route_lb.curselection())
+        r = self.routes[route_name]
+        self.clear_routepoints_listbox()
+        #loop routepoints to insert:
+        distance = 0
+        last_waypoint_id = -1
+        for rp in range(1, r.amount_of_routepoints + 1):
+            wp = r.routepoints[rp]
+            wp_id = wp["id"]
+            wp_name = self.waypoint_names_by_id[wp_id]
+            if last_waypoint_id > -1:
+                distance += round(self.__get_distance_from_connections(wp_id, last_waypoint_id),2)
+            self.route_tresholds_lb.insert(tk.END, (wp_name, str(distance)))
+            last_waypoint_id = wp_id
+
+    def clear_routepoints_listbox(self):
+        self.route_tresholds_lb.delete(0, self.route_tresholds_lb.size())
+
+    def __get_distance_from_connections(self, id_1, id_2):
+        '''will return the distance between the 2 wp id's'''
+        for con in self.connections.values():
+            if (id_1 == con[0] and id_2 == con[1]) or (id_1 == con[1] and id_2 == con[0]):
+                return con[2]
 
 class login_screen_toplevel(tk.Toplevel):
     '''displays a login screen that will default to a normal user, has Admin as 2nd'''
     def __init__(self, parent):
         tk.Toplevel.__init__(self, parent)
         self.parent = parent
-
+        self.title("login")
         users = ["gebruiker", "Admin"]
 
         r = 0
@@ -965,73 +1063,6 @@ class TidalWindowsGraphFrame(tk.Frame):
             self.canvas.create_rectangle(left, x, left + self.canvas_treshold_column_width, 0, fill="red")
 
         self.canvas.tag_raise(canvas_text)
-
-class RoutesFrame(tk.Frame):
-    '''creates a frame with everything to make routes'''
-    def __init__(self, parent):
-        self.parent = parent
-        tk.Frame.__init__(self, parent)
-        #make 2 listboxes, one single, with a list of stored routes
-        #and 1 multi, with the waypoints in that route and the distances (cumulative)
-        #a 'new route' button, an 'edit route' button and a 'delete route' button
-
-        route_f = tk.Frame(self)
-        tk.Label(route_f, text="routes", borderwidth=1, relief=tk.RAISED).grid(row=0, sticky=tk.W+tk.E)
-        self.route_lb = tk.Listbox(route_f, borderwidth=0, selectborderwidth=0, relief=tk.FLAT, exportselection=tk.FALSE)
-        self.route_lb.grid(row=1,column=0)
-        self.route_lb.bind('<<ListboxSelect>>', self.fill_routepoints_listbox)
-        route_f.grid(row=0, column=0, padx=10)
-
-        self.route_tresholds_lb = MultiListbox(self,(("drempel",20),("afstand",10)))
-        self.route_tresholds_lb.grid(row=0,column=1, sticky=tk.E)
-
-        f = tk.Frame(self)
-        tk.Button(f, text="nieuw", command=self.parent.add_route).grid(row=0, column=1, pady=5, padx=5)
-        tk.Button(f, text="edit", command=self.parent.edit_route).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_route).grid(row=0,column=2, pady=5, padx=5)
-        f.grid(sticky=tk.E, columnspan=2)
-
-    def fill_routes_listbox(self, routes, waypoints, connections):
-        '''fills the routes listbox with all available routes in the DB'''
-        #store fresh waypoint and connection data:
-        self.waypoints = waypoints
-        self.waypoint_names_by_id = {}
-        self.waypoint_ids_by_name = {}
-        self.route_lb.delete(0, self.route_lb.size())
-        for wp in self.waypoints.values():
-            self.waypoint_names_by_id[wp.id] = wp.name
-            self.waypoint_ids_by_name[wp.name] = wp.id
-
-        self.connections = connections
-        self.routes = routes
-        for r in routes.keys():
-            self.route_lb.insert(tk.END, r)
-
-    def fill_routepoints_listbox(self, *args):
-        '''fills the routepoints listbox with waypoints of the selected route'''
-        route_name = self.route_lb.get(self.route_lb.curselection())
-        r = self.routes[route_name]
-        self.clear_routepoints_listbox()
-        #loop routepoints to insert:
-        distance = 0
-        last_waypoint_id = -1
-        for rp in range(1, r.amount_of_routepoints + 1):
-            wp = r.routepoints[rp]
-            wp_id = wp["id"]
-            wp_name = self.waypoint_names_by_id[wp_id]
-            if last_waypoint_id > -1:
-                distance += round(self.__get_distance_from_connections(wp_id, last_waypoint_id),2)
-            self.route_tresholds_lb.insert(tk.END, (wp_name, str(distance)))
-            last_waypoint_id = wp_id
-
-    def clear_routepoints_listbox(self):
-        self.route_tresholds_lb.delete(0, self.route_tresholds_lb.size())
-
-    def __get_distance_from_connections(self, id_1, id_2):
-        '''will return the distance between the 2 wp id's'''
-        for con in self.connections.values():
-            if (id_1 == con[0] and id_2 == con[1]) or (id_1 == con[1] and id_2 == con[0]):
-                return con[2]
 
 class ConnectionsFrame(tk.Frame):
     '''creates a frame with everything to add and modify connections between waypoints.'''
