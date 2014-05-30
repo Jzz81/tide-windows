@@ -29,8 +29,8 @@ class Application(tk.Frame):
             os.makedirs(self.local_db_directory)
         self.nw_db_directory = r"\\srkgna\personal\GNA\databaseHVL\Wespy"
 
-        self.user = "user"
-        self.load_login_toplevel()
+        self.user = "admin"#"user" DEBUG
+##        self.load_login_toplevel()
 
         self.__initUI()
 
@@ -38,8 +38,6 @@ class Application(tk.Frame):
 
         self.misc_data = Misc_classes.misc_data(self.database.local_program_database_path)
         self.routing_data = Routing.StoredRoutepoints(self.database.local_program_database_path)
-        self.connections_frame = GUI_helper.ConnectionsFrame(self)
-        self.routes_frame = GUI_helper.RoutesFrame(self)
         self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
         self.tidal_grapth_frame = GUI_helper.TidalWindowsGraphFrame(self)
 
@@ -98,11 +96,11 @@ class Application(tk.Frame):
 #fill listboxes
     def fill_connections_listbox(self):
         '''fill the connections listbox with data'''
-        self.connections_frame.clear_listbox()
+        self.config_frame.clear_connections_listbox()
         route_points = self.routing_data.route_points
         connections = self.routing_data.connections
 
-        self.connections_frame.fill_listbox(route_points,connections)
+        self.config_frame.fill_connections_listbox(route_points,connections)
 
     def fill_routes_listbox(self):
         '''fill the routes listbox with data'''
@@ -122,7 +120,6 @@ class Application(tk.Frame):
         else:
             self.config_frame.fill_tresholds_user_listbox(route_points)
 
-
 #display / hide section
     def display_config_screen(self):
         '''display a frame that holds the config screen'''
@@ -130,6 +127,7 @@ class Application(tk.Frame):
         self.config_frame.grid(padx=10)
         self.fill_waypoint_listbox()
         self.fill_routes_listbox()
+        self.fill_connections_listbox()
 
     def display_routes_frame(self):
         '''display the routes frame'''
@@ -446,15 +444,13 @@ class Application(tk.Frame):
         xoffset = 200
         yoffset = 100
         #center of screen:
-        w = self.top.parent.winfo_screenwidth()
-        h = self.top.parent.winfo_screenheight()
+        w = self.winfo_screenwidth()
+        h = self.winfo_screenheight()
         x = w/2 - width/2
         y = h/2 - height/2
         g_string = "{w}x{h}+{x}+{y}".format(w=width, h=height, x=x, y=y)
         self.top.geometry(g_string)
-        self.top.focus_set()
         self.top.grab_set()
-        self.top.transient(self)
         self.wait_window(self.top)
 
 if __name__ == "__main__":

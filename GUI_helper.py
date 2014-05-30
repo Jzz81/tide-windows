@@ -56,13 +56,20 @@ class config_screen_frame(tk.Frame):
         tk.Button(f, text="edit", command=self.parent.edit_waypoint).grid(row=0,column=0, pady=5, padx=5)
         f.grid(sticky=tk.E)
 
-
         tabs.add(self.treshold_tab, text="Drempels")
 
         #CONNECTIONS TAB:
         self.connections_tab = tk.Frame(tabs)
         if user == "admin":
             tabs.add(self.connections_tab, text="Connecties")
+            self.connections_lb = MultiListbox(self.connections_tab,(("drempel 1",20),("drempel 2", 20), ("afstand", 10)))
+            self.connections_lb.grid(row=0,column=0, sticky=tk.W)
+
+            conn_button_frame = tk.Frame(self.connections_tab)
+            tk.Button(conn_button_frame, text="nieuw", command=self.parent.add_connection).grid(row=0, column=1, pady=5, padx=5)
+            tk.Button(conn_button_frame, text="edit", command=self.parent.edit_connection).grid(row=0,column=0, pady=5, padx=5)
+            tk.Button(conn_button_frame, text="delete", command=self.parent.delete_connection).grid(row=0,column=2, pady=5, padx=5)
+            conn_button_frame.grid(sticky=tk.E)
 
         #ROUTES TAB:
         self.routes_tab = ttk.Frame(tabs)
@@ -77,11 +84,11 @@ class config_screen_frame(tk.Frame):
         self.route_tresholds_lb = MultiListbox(self.routes_tab,(("drempel",20),("afstand",10)))
         self.route_tresholds_lb.grid(row=0,column=1, sticky=tk.E)
 
-        f = tk.Frame(self.routes_tab)
-        tk.Button(f, text="nieuw", command=self.parent.add_route).grid(row=0, column=1, pady=5, padx=5)
-        tk.Button(f, text="edit", command=self.parent.edit_route).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_route).grid(row=0,column=2, pady=5, padx=5)
-        f.grid(sticky=tk.E, columnspan=2)
+        route_button_frame = tk.Frame(self.routes_tab)
+        tk.Button(route_button_frame, text="nieuw", command=self.parent.add_route).grid(row=0, column=1, pady=5, padx=5)
+        tk.Button(route_button_frame, text="edit", command=self.parent.edit_route).grid(row=0,column=0, pady=5, padx=5)
+        tk.Button(route_button_frame, text="delete", command=self.parent.delete_route).grid(row=0,column=2, pady=5, padx=5)
+        route_button_frame.grid(sticky=tk.E, columnspan=2)
 
         tabs.add(self.routes_tab, text="Routes")
         tabs.grid(row=0,column=0, sticky=tk.W)
@@ -115,6 +122,20 @@ class config_screen_frame(tk.Frame):
         else:
             self.tresholds_user_listbox.delete(0, self.tresholds_user_listbox.size())
 
+    def fill_connections_listbox(self, waypoints, connections):
+        '''fills the listbox with connection data'''
+        #map wp id's to names
+        wp_ids = {}
+        for wp in waypoints.values():
+            wp_ids[wp.id] = wp.name
+        #fill lb:
+        for conn in connections.values():
+            self.connections_lb.insert(tk.END,(wp_ids[conn[0]], wp_ids[conn[1]],conn[2]))
+
+    def clear_connections_listbox(self):
+        '''clears the listbox of all data'''
+        self.connections_lb.delete(0, self.connections_lb.size())
+
     def fill_routes_listbox(self, routes, waypoints, connections):
         '''fills the routes listbox with all available routes in the DB'''
         #store fresh waypoint and connection data:
@@ -157,74 +178,32 @@ class config_screen_frame(tk.Frame):
             if (id_1 == con[0] and id_2 == con[1]) or (id_1 == con[1] and id_2 == con[0]):
                 return con[2]
 
-
-
-class RoutesFrame(tk.Frame):
-    '''creates a frame with everything to make routes'''
+class ConnectionsFrame(tk.Frame):
+    '''creates a frame with everything to add and modify connections between waypoints.'''
     def __init__(self, parent):
         self.parent = parent
         tk.Frame.__init__(self, parent)
-        #make 2 listboxes, one single, with a list of stored routes
-        #and 1 multi, with the waypoints in that route and the distances (cumulative)
-        #a 'new route' button, an 'edit route' button and a 'delete route' button
-
-        route_f = tk.Frame(self)
-        tk.Label(route_f, text="routes", borderwidth=1, relief=tk.RAISED).grid(row=0, sticky=tk.W+tk.E)
-        self.route_lb = tk.Listbox(route_f, borderwidth=0, selectborderwidth=0, relief=tk.FLAT, exportselection=tk.FALSE)
-        self.route_lb.grid(row=1,column=0)
-        self.route_lb.bind('<<ListboxSelect>>', self.fill_routepoints_listbox)
-        route_f.grid(row=0, column=0, padx=10)
-
-        self.route_tresholds_lb = MultiListbox(self,(("drempel",20),("afstand",10)))
-        self.route_tresholds_lb.grid(row=0,column=1, sticky=tk.E)
-
+        self.lb = MultiListbox(self,(("drempel 1",20),("drempel 2", 20), ("afstand", 10)))
+        self.lb.grid(row=0,column=0, sticky=tk.W)
         f = tk.Frame(self)
-        tk.Button(f, text="nieuw", command=self.parent.add_route).grid(row=0, column=1, pady=5, padx=5)
-        tk.Button(f, text="edit", command=self.parent.edit_route).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_route).grid(row=0,column=2, pady=5, padx=5)
-        f.grid(sticky=tk.E, columnspan=2)
+        tk.Button(f, text="nieuw", command=self.parent.add_connection).grid(row=0, column=1, pady=5, padx=5)
+        tk.Button(f, text="edit", command=self.parent.edit_connection).grid(row=0,column=0, pady=5, padx=5)
+        tk.Button(f, text="delete", command=self.parent.delete_connection).grid(row=0,column=2, pady=5, padx=5)
+        f.grid(sticky=tk.E)
 
-    def fill_routes_listbox(self, routes, waypoints, connections):
-        '''fills the routes listbox with all available routes in the DB'''
-        #store fresh waypoint and connection data:
-        self.waypoints = waypoints
-        self.waypoint_names_by_id = {}
-        self.waypoint_ids_by_name = {}
-        self.route_lb.delete(0, self.route_lb.size())
-        for wp in self.waypoints.values():
-            self.waypoint_names_by_id[wp.id] = wp.name
-            self.waypoint_ids_by_name[wp.name] = wp.id
+    def fill_listbox(self, waypoints, connections):
+        '''fills the listbox with connection data'''
+        #map wp id's to names
+        wp_ids = {}
+        for wp in waypoints.values():
+            wp_ids[wp.id] = wp.name
+        #fill lb:
+        for conn in connections.values():
+            self.lb.insert(tk.END,(wp_ids[conn[0]], wp_ids[conn[1]],conn[2]))
 
-        self.connections = connections
-        self.routes = routes
-        for r in routes.keys():
-            self.route_lb.insert(tk.END, r)
-
-    def fill_routepoints_listbox(self, *args):
-        '''fills the routepoints listbox with waypoints of the selected route'''
-        route_name = self.route_lb.get(self.route_lb.curselection())
-        r = self.routes[route_name]
-        self.clear_routepoints_listbox()
-        #loop routepoints to insert:
-        distance = 0
-        last_waypoint_id = -1
-        for rp in range(1, r.amount_of_routepoints + 1):
-            wp = r.routepoints[rp]
-            wp_id = wp["id"]
-            wp_name = self.waypoint_names_by_id[wp_id]
-            if last_waypoint_id > -1:
-                distance += round(self.__get_distance_from_connections(wp_id, last_waypoint_id),2)
-            self.route_tresholds_lb.insert(tk.END, (wp_name, str(distance)))
-            last_waypoint_id = wp_id
-
-    def clear_routepoints_listbox(self):
-        self.route_tresholds_lb.delete(0, self.route_tresholds_lb.size())
-
-    def __get_distance_from_connections(self, id_1, id_2):
-        '''will return the distance between the 2 wp id's'''
-        for con in self.connections.values():
-            if (id_1 == con[0] and id_2 == con[1]) or (id_1 == con[1] and id_2 == con[0]):
-                return con[2]
+    def clear_listbox(self):
+        '''clears the listbox of all data'''
+        self.lb.delete(0, self.lb.size())
 
 class login_screen_toplevel(tk.Toplevel):
     '''displays a login screen that will default to a normal user, has Admin as 2nd'''
@@ -430,7 +409,6 @@ class modify_route_toplevel(tk.Toplevel):
         self.dataframe.grid(row=0,column=0,padx=10,pady=10)
         self.route_name_label.configure(text=routename)
 
-
 class modify_connection_toplevel(tk.Toplevel):
     def __init__(self, parent, title, waypoints):
         tk.Toplevel.__init__(self, parent)
@@ -454,7 +432,7 @@ class modify_connection_toplevel(tk.Toplevel):
         dataframe = tk.Frame(self)
         tk.Label(dataframe,text="Eerste drempel:").grid(row=r, column=0, sticky=tk.E)
         #optionmenu 1
-        self.conn_treshold_1_option = tk.OptionMenu(dataframe, self.Treshold_1, "")
+        self.conn_treshold_1_option = tk.OptionMenu(dataframe, self.Treshold_1, *self.waypoints)
         self.conn_treshold_1_option.grid(row=r, column=1, sticky=tk.W)
         r += 1
 
@@ -1064,32 +1042,6 @@ class TidalWindowsGraphFrame(tk.Frame):
 
         self.canvas.tag_raise(canvas_text)
 
-class ConnectionsFrame(tk.Frame):
-    '''creates a frame with everything to add and modify connections between waypoints.'''
-    def __init__(self, parent):
-        self.parent = parent
-        tk.Frame.__init__(self, parent)
-        self.lb = MultiListbox(self,(("drempel 1",20),("drempel 2", 20), ("afstand", 10)))
-        self.lb.grid(row=0,column=0, sticky=tk.W)
-        f = tk.Frame(self)
-        tk.Button(f, text="nieuw", command=self.parent.add_connection).grid(row=0, column=1, pady=5, padx=5)
-        tk.Button(f, text="edit", command=self.parent.edit_connection).grid(row=0,column=0, pady=5, padx=5)
-        tk.Button(f, text="delete", command=self.parent.delete_connection).grid(row=0,column=2, pady=5, padx=5)
-        f.grid(sticky=tk.E)
-
-    def fill_listbox(self, waypoints, connections):
-        '''fills the listbox with connection data'''
-        #map wp id's to names
-        wp_ids = {}
-        for wp in waypoints.values():
-            wp_ids[wp.id] = wp.name
-        #fill lb:
-        for conn in connections.values():
-            self.lb.insert(tk.END,(wp_ids[conn[0]], wp_ids[conn[1]],conn[2]))
-
-    def clear_listbox(self):
-        '''clears the listbox of all data'''
-        self.lb.delete(0, self.lb.size())
 
 class StatusBar(tk.Frame):
 
