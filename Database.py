@@ -25,6 +25,8 @@ class Database():
     def __init__(self, parent, network_database_directory, local_database_directory):
         self.parent  = parent
 
+        self.parent.status.set("initializing database...")
+
         self.network_database_dir = self.__add_slash_to_dir(network_database_directory)
         self.local_database_dir = self.__add_slash_to_dir(local_database_directory)
 
@@ -66,20 +68,22 @@ class Database():
         db_rise_path = []
         for i in range(first_date.year, last_date.year + 1):
             db_rise_path.append("{dir}{y}.db3".format(dir=db_rise_dir, y=i))
-
+        #loop databases:
         for path in db_rise_path:
             if not os.path.isfile(path):
                 continue
             self.__open_db_connection(path)
             #get all tables:
             sql = "SELECT name FROM sqlite_master WHERE type='table'";
-            cursor = self.__execute_sql(sql, return_cursor=True)
-            for table in cursor:
+            tables= self.__execute_sql(sql, return_cursor=True)
+            #loop tables in database:
+            for table in tables:
                 sql = "SELECT * FROM {table} WHERE datetime >= {first} AND datetime <= {last};"
                 sql = sql.format(table=table[0],
                                  first=self.__since_epoch(first_date),
                                  last=self.__since_epoch(last_date))
                 self.__execute_sql(sql)
+                self.parent.status.set("loading tidal data for {table}".format(table=table[0]))
                 data = list(self.__cur)
                 n = np.array(data)
 
@@ -89,6 +93,7 @@ class Database():
                 else:
                     self.tidal_data_arrays[table[0]] = n
         self.__check_existence_of_tidal_data()
+        self.parent.status.set("done!")
 
     def __check_existence_of_tidal_data(self):
         '''checks the existence of a tidal data point'''
@@ -273,6 +278,7 @@ class Database():
             self.network_program_database_path = self.__get_network_db_path(which_database="program")
         else:
             print "no GNA network connection present"
+            self.parent.status.set("not connected to GNA network, run local")
             self.network_program_database_path = None
 
         if self.network_program_database_path != None:
@@ -305,25 +311,31 @@ class Database():
 
         #NO CONNECTION AND NO LOCAL DATABASE
         if not self.connected_to_gna_network and self.local_program_database_path == None:
+            self.parent.status.set("No database")
             raise DatabaseError("No database found; not connected to network and no local database present")
         #CONNECTION, BUT NO NETWORK DATABASE AND NO LOCAL DATABASE
         elif self.connected_to_gna_network and self.network_program_database_path == None and self.local_program_database_path == None:
+            self.parent.status.set("No database")
             raise DatabaseError("No database found; connected to network, but no network and no local database present")
         #DATABASE ON THE NETWORK, BUT NOT LOCALLY
         elif (self.connected_to_gna_network and self.network_program_database_path != None and self.local_program_database_path == None):
             print "no local database found"
+            self.parent.status.set("no local database, copying from network...")
             self.__copy_network_to_local(which_database="program")
         #DATABASE LOCAL, BUT NOT ON THE NETWORK
         elif self.connected_to_gna_network and self.network_program_database_path == None and self.local_program_database_path != None:
             print "no network database found"
+            self.parent.status.set("no network database, copying from local...")
             self.__copy_local_to_network(which_database="program")
         #BOTH DATABASES EXIST, BUT NETWORK HOLDS A NEWER ONE:
         elif self.connected_to_gna_network and self.__network_db_is_newer():
             print "network holds a newer database"
+            self.parent.status.set("local database outdated, copying newer version from network...")
             self.__copy_network_to_local(which_database="program")
         #BOTH DATABASES EXIST, BUT LOCAL HOLDS A NEWER ONE:
         elif self.connected_to_gna_network and self.__local_db_is_newer():
             print "local holds a newer database"
+            self.parent.status.set("network database outdated, copying newer version from local...")
             self.__copy_local_to_network(which_database="program")
         #CONNECTION EXISTS, BOTH DATABASES ARE EQUAL:
         elif self.connected_to_gna_network:

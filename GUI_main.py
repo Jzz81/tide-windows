@@ -32,25 +32,26 @@ class Application(tk.Frame):
         self.user = "user"
         self.load_login_toplevel()
 
+        self.__initUI()
+
         self.__initDB()
 
         self.misc_data = Misc_classes.misc_data(self.database.local_program_database_path)
         self.routing_data = Routing.StoredRoutepoints(self.database.local_program_database_path)
-
-        self.__initUI()
-
-##        self.make_tidal_calculations()
-
-    def __initUI(self):
-
-        menubar = GUI_helper.MenuBar(self)
-        self.parent.config(menu=menubar)
-
         self.connections_frame = GUI_helper.ConnectionsFrame(self)
         self.routes_frame = GUI_helper.RoutesFrame(self)
         self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
         self.tidal_grapth_frame = GUI_helper.TidalWindowsGraphFrame(self)
 
+##        self.make_tidal_calculations()
+
+    def __initUI(self):
+        '''initialize menubar and statusbar'''
+        menubar = GUI_helper.MenuBar(self)
+        self.parent.config(menu=menubar)
+
+        self.status = GUI_helper.StatusBar(self.parent)
+        self.status.pack(side=tk.BOTTOM, fill=tk.X)
 
     def __initDB(self):
         '''initializes the database and, if nessesary, converts the Access DB to import data'''
