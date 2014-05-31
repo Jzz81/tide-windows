@@ -232,10 +232,11 @@ class login_screen_toplevel(tk.Toplevel):
 
     def __login(self):
         '''check password and login'''
-        if self.selected_user.get() == "Admin" and self.password_entry.get() == "gnaPass":
-            self.parent.set_user("admin")
+        if self.selected_user.get() == "Admin" and self.password_entry.get() == "a":#"gnaPass":DEBUG
+            self.parent.user = "admin"
         if self.selected_user.get() == "gebruiker":
-            self.parent.set_user("user")
+            self.parent.user = "user"
+        self.destroy()
 
     def __show_password_box(self, *args):
         '''show the entry box to input a password'''
@@ -1067,10 +1068,14 @@ class MenuBar(tk.Menu):
         fileMenu = tk.Menu(self)
         fileMenu.add_command(label="Exit", command=parent.onExit)
         dataMenu = tk.Menu(self)
-        dataMenu.add_command(label="configuratie", command=parent.display_config_screen)
+        dataMenu.add_command(label="configuratie", command=lambda: parent.set_program_state("config"))
+        dataMenu.add_command(label="berekeningen", command=lambda: parent.set_program_state("calculate"))
+        loginMenu = tk.Menu(self)
+        loginMenu.add_command(label="login scherm", command=parent.display_login_screen)
 
         self.add_cascade(label="File", menu=fileMenu)
         self.add_cascade(label="Data", menu=dataMenu)
+        self.add_cascade(label="Login", menu=loginMenu)
 
 class MultiListbox(tk.Frame):
     '''A multilistbox'''

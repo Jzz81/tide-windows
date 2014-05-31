@@ -29,8 +29,9 @@ class Application(tk.Frame):
             os.makedirs(self.local_db_directory)
         self.nw_db_directory = r"\\srkgna\personal\GNA\databaseHVL\Wespy"
 
-        self.user = "admin"#"user" DEBUG
-##        self.load_login_toplevel()
+        self.program_state = "empty"
+
+        self.user = "user"
 
         self.__initUI()
 
@@ -55,16 +56,6 @@ class Application(tk.Frame):
         '''initializes the database and, if nessesary, converts the Access DB to import data'''
         self.database = Database.Database(self, self.nw_db_directory, self.local_db_directory)
         print "Tidal data available"
-
-    def set_user(self, user):
-        '''set the user to admin or user'''
-        self.user = user
-        self.top.destroy()
-        if self.user == "admin":
-            self.parent.title("GNA Tijpoorten *** ADMIN ***")
-        else:
-            self.parent.title("GNA Tijpoorten")
-
 
     def calculate_first_possible_window(self,
                                         ship_type,
@@ -121,51 +112,76 @@ class Application(tk.Frame):
             self.config_frame.fill_tresholds_user_listbox(route_points)
 
 #display / hide section
-    def display_config_screen(self):
-        '''display a frame that holds the config screen'''
-        self.config_frame = GUI_helper.config_screen_frame(self, self.user, bg="white")
-        self.config_frame.grid(padx=10)
-        self.fill_waypoint_listbox()
-        self.fill_routes_listbox()
-        self.fill_connections_listbox()
+    def display_login_screen(self):
+        '''show login screen'''
+        print "display login screen procedure"
+        old_user = self.user
+        print "old user:", old_user
+        self.load_login_toplevel()
+        print "new user:", self.user
+        if old_user != self.user:
+            print "new user, resetting program state..."
+            self.set_program_state(self.program_state)
+            if self.user == "admin":
+                self.parent.title("GNA Tijpoorten *** ADMIN ***")
+            else:
+                self.parent.title("GNA Tijpoorten")
+        print "end of login procedure"
 
-    def display_routes_frame(self):
-        '''display the routes frame'''
-        self.routes_frame.grid()
-        self.fill_routes_listbox()
+    def set_program_state(self, state):
+        '''sets the program state'''
+        #try cleaning all the frames:
+        print "cleaning frames...",
+        try:
+            self.config_frame.grid_forget()
+        except:
+            pass
+        try:
+            self.tidal_calculations_frame.grid_forget()
+        except:
+            pass
+        try:
+            self.tidal_grapth_frame.grid_forget()
+        except:
+            pass
+        print "done"
 
-    def hide_routes_frame(self):
-        '''hides the routes frame'''
-        self.routes_frame.grid_forget()
+        if state == "calculate":
+            self.config_frame.grid_forget()
+            self.tidal_calculations_frame.grid()
+            self.tidal_calculations_frame.fill_data(routes=self.routing_data.routes,
+                                                    deviations=self.misc_data.deviations,
+                                                    ship_types=self.misc_data.ship_types)
+            self.tidal_grapth_frame.grid()
+            self.program_state = "calculate"
+        elif state == "config":
+            self.config_frame = GUI_helper.config_screen_frame(self, self.user)
+            self.tidal_calculations_frame.grid_forget()
+            self.tidal_grapth_frame.grid_forget()
+            self.config_frame.grid()
+            self.program_state = "config"
+        elif state == "empty":
+            self.program_state = "empty"
 
-    def display_connections_frame(self):
-        '''display the connections frame'''
-        self.connections_frame.grid()
-        self.fill_connections_listbox()
-
-    def hide_connections_frame(self):
-        '''hides the connections frame'''
-        self.connections_frame.grid_forget()
-
-    def display_waypoint_frame(self):
-        '''display the waypoints listbox frame'''
-        self.waypointframe.grid()
-        self.fill_waypoint_listbox()
-
-    def hide_waypoint_frame(self):
-        '''hide the waypoints listbox frame'''
-        self.waypointframe.grid_forget()
-
-    def display_tidal_calculations_frame(self):
+    def display_calculate_screen(self):
+        '''display a frame that calculates'''
+        self.config_frame.grid_forget()
+        self.program_state = "calculate"
         self.tidal_calculations_frame.grid()
         self.tidal_calculations_frame.fill_data(routes=self.routing_data.routes,
                                                 deviations=self.misc_data.deviations,
                                                 ship_types=self.misc_data.ship_types)
         self.tidal_grapth_frame.grid()
 
-    def hide_tidal_calculations_frame(self):
-        self.tidal_calculations_frame.grid_forget()
 
+    def display_config_screen(self):
+        '''display a frame that holds the config screen'''
+        self.tidal_calculations_frame.grid_forget()
+        self.program_state = "config"
+        self.config_frame.grid(padx=10)
+        self.fill_waypoint_listbox()
+        self.fill_routes_listbox()
+        self.fill_connections_listbox()
 
     def onExit(self):
         print "exit menu button clicked"
@@ -280,7 +296,9 @@ class Application(tk.Frame):
 
 #load toplevel section
     def load_login_toplevel(self):
+        print "load login procedure"
         self.top = GUI_helper.login_screen_toplevel(self)
+        print "make top modal:"
         self.make_top_modal(150,100)
 
     def load_routes_toplevel(self, title):
@@ -449,9 +467,13 @@ class Application(tk.Frame):
         x = w/2 - width/2
         y = h/2 - height/2
         g_string = "{w}x{h}+{x}+{y}".format(w=width, h=height, x=x, y=y)
+        print "set gstring"
         self.top.geometry(g_string)
+        print "grab set"
         self.top.grab_set()
+        print "wait window"
         self.wait_window(self.top)
+        print "finished"
 
 if __name__ == "__main__":
     #start GUI:
