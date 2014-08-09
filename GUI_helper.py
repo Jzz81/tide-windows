@@ -27,7 +27,6 @@ class config_screen_frame(tk.Frame):
     def __init__(self, parent, user, *args, **kwargs):
         tk.Frame.__init__(self,parent, *args, **kwargs)
         self.parent = parent
-
         self.relief = tk.RAISED
 
         tabs = ttk.Notebook(self)
@@ -79,6 +78,13 @@ class config_screen_frame(tk.Frame):
         self.route_lb = tk.Listbox(route_f, borderwidth=0, selectborderwidth=0, relief=tk.FLAT, exportselection=tk.FALSE)
         self.route_lb.grid(row=1,column=0)
         self.route_lb.bind('<<ListboxSelect>>', self.fill_routepoints_listbox)
+        self.route_lb.bind("<MouseWheel>", self._onmousewheel)
+        sb = tk.Scrollbar(route_f, orient=tk.VERTICAL)
+        sb.grid(row=1,column=1, sticky=tk.N+tk.S)
+        self.route_lb.config(yscrollcommand=sb.set)
+        sb.config(command=self.route_lb.yview)
+        route_f.bind('<Enter>',lambda e:self.route_lb.focus_force())
+
         route_f.grid(row=0, column=0, padx=10)
 
         self.route_tresholds_lb = MultiListbox(self.routes_tab,(("drempel",20),("afstand",10)))
@@ -92,6 +98,10 @@ class config_screen_frame(tk.Frame):
 
         tabs.add(self.routes_tab, text="Routes")
         tabs.grid(row=0,column=0, sticky=tk.W)
+
+    def _onmousewheel(self, event):
+        self.route_lb.yview("scroll", -event.delta, "units")
+        return "break"
 
     def fill_tresholds_user_listbox(self, waypoints):
         '''to fill the user listbox with waypoint data'''
@@ -134,6 +144,7 @@ class config_screen_frame(tk.Frame):
 
     def clear_connections_listbox(self):
         '''clears the listbox of all data'''
+
         self.connections_lb.delete(0, self.connections_lb.size())
 
     def fill_routes_listbox(self, routes, waypoints, connections):
@@ -149,8 +160,8 @@ class config_screen_frame(tk.Frame):
 
         self.connections = connections
         self.routes = routes
-        for r in routes.keys():
-            self.route_lb.insert(tk.END, r)
+        for key in sorted(routes.keys(), key = lambda s: s.lower()):
+            self.route_lb.insert(tk.END, key)
 
     def fill_routepoints_listbox(self, *args):
         '''fills the routepoints listbox with waypoints of the selected route'''
@@ -1089,6 +1100,7 @@ class MultiListbox(tk.Frame):
                    relief=tk.FLAT, exportselection=tk.FALSE)
           lb.pack(expand=tk.YES, fill=tk.BOTH)
           self.lists.append(lb)
+          lb.bind('<MouseWheel>', lambda e, s=self:lambda e,s=self:s._scroll(tk.SCROLL,-1*(1 if e.delta>0 else -1),tk.UNITS))
           lb.bind('<B1-Motion>', lambda e, s=self: s._select(e.y))
           lb.bind('<Button-1>', lambda e, s=self: s._select(e.y))
           lb.bind('<Leave>', lambda e: 'break')
@@ -1098,6 +1110,8 @@ class MultiListbox(tk.Frame):
       tk.Label(frame, borderwidth=1, relief=tk.RAISED).pack(fill=tk.X)
       sb = tk.Scrollbar(frame, orient=tk.VERTICAL, command=self._scroll)
       sb.pack(expand=tk.YES, fill=tk.Y)
+      self.bind('<MouseWheel>',  lambda e,s=self:s._scroll(tk.SCROLL,-1*(1 if e.delta>0 else -1),tk.UNITS))
+      self.bind('<Enter>',lambda e,s=self:s.focus_force())
       self.lists[0]['yscrollcommand']=sb.set
 
     def _select(self, y):

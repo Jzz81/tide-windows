@@ -239,6 +239,7 @@ class StoredRoutepoints():
         self.__execute_sql("DELETE FROM {table} WHERE id={id};".format(table=name_table_name, id=route_id))
         self.__execute_sql("DELETE FROM {table} WHERE id={id};".format(table=rp_table_name, id=route_id))
         self.__conn.close()
+        self.__retreive_routes_from_database()
 
     def delete_waypoint_from_database(self, routepoint_id):
         '''delete a waypoint from the database'''

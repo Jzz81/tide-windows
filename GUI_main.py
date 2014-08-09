@@ -29,8 +29,6 @@ class Application(tk.Frame):
             os.makedirs(self.local_db_directory)
         self.nw_db_directory = r"\\srkgna\personal\GNA\databaseHVL\Wespy"
 
-        self.program_state = "empty"
-
         self.user = "user"
 
         self.__initUI()
@@ -39,15 +37,16 @@ class Application(tk.Frame):
 
         self.misc_data = Misc_classes.misc_data(self.database.local_program_database_path)
         self.routing_data = Routing.StoredRoutepoints(self.database.local_program_database_path)
-        self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
-        self.tidal_grapth_frame = GUI_helper.TidalWindowsGraphFrame(self)
 
-##        self.make_tidal_calculations()
+        self.set_program_state("config")
 
     def __initUI(self):
         '''initialize menubar and statusbar'''
         menubar = GUI_helper.MenuBar(self)
         self.parent.config(menu=menubar)
+
+        self.tidal_calculations_frame = GUI_helper.Find_Tidal_window_frame(self)
+        self.tidal_grapth_frame = GUI_helper.TidalWindowsGraphFrame(self)
 
         self.status = GUI_helper.StatusBar(self.parent)
         self.status.pack(side=tk.BOTTOM, fill=tk.X)
@@ -131,7 +130,6 @@ class Application(tk.Frame):
     def set_program_state(self, state):
         '''sets the program state'''
         #try cleaning all the frames:
-        print "cleaning frames...",
         try:
             self.config_frame.grid_forget()
         except:
@@ -144,10 +142,9 @@ class Application(tk.Frame):
             self.tidal_grapth_frame.grid_forget()
         except:
             pass
-        print "done"
 
         if state == "calculate":
-            self.config_frame.grid_forget()
+            print "Switching to calculation mode"
             self.tidal_calculations_frame.grid()
             self.tidal_calculations_frame.fill_data(routes=self.routing_data.routes,
                                                     deviations=self.misc_data.deviations,
@@ -155,11 +152,12 @@ class Application(tk.Frame):
             self.tidal_grapth_frame.grid()
             self.program_state = "calculate"
         elif state == "config":
+            print "Switching to config mode"
             self.config_frame = GUI_helper.config_screen_frame(self, self.user)
-            self.tidal_calculations_frame.grid_forget()
-            self.tidal_grapth_frame.grid_forget()
             self.config_frame.grid()
             self.program_state = "config"
+            self.display_config_screen()
+
         elif state == "empty":
             self.program_state = "empty"
 
@@ -176,12 +174,10 @@ class Application(tk.Frame):
 
     def display_config_screen(self):
         '''display a frame that holds the config screen'''
-        self.tidal_calculations_frame.grid_forget()
-        self.program_state = "config"
-        self.config_frame.grid(padx=10)
         self.fill_waypoint_listbox()
         self.fill_routes_listbox()
-        self.fill_connections_listbox()
+        if self.user == "admin":
+            self.fill_connections_listbox()
 
     def onExit(self):
         print "exit menu button clicked"
@@ -481,7 +477,8 @@ if __name__ == "__main__":
     #set maximized:
     root.wm_state('zoomed')
     #pass to Window class
-    Application(root).grid(sticky=tk.W)
+    a = Application(root, bg="white")
+    a.pack(side=tk.TOP, fill=tk.BOTH, anchor=tk.NW, expand=tk.YES)
     #'send' program into gui loop (to keep program in gui)
     root.mainloop()
 
